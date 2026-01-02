@@ -1,15 +1,16 @@
 site_name: suksham-vachak
 repo_url: https://github.com/dev-globalveda/suksham-vachak
 site_url: https://dev-globalveda.github.io/suksham-vachak
-site_description: This is a template repository for Python projects that use Poetry for their dependency management.
+site_description: Suksham Vāchak (सूक्ष्म वाचक) — An intelligent AI engine for generating natural cricket commentary.
 site_author: Aman Misra
 edit_uri: edit/main/docs/
 repo_name: dev-globalveda/suksham-vachak
-copyright: Maintained by <a href="https://dev-globalveda.com">Florian</a>.
+copyright: Maintained by <a href="https://dev-globalveda.com">Aman Misra</a>.
 
 nav:
   - Home: index.md
-  - Modules: modules.md
+  - Roadmap: roadmap.md
+  - API Reference: modules.md
 plugins:
   - search
   - mkdocstrings:

@@ -1,4 +1,4 @@
-from suksham_vachak.foo import foo
+from suksham_vachak.processing import foo
 
 
 def test_foo():

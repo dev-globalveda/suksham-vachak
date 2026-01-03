@@ -169,3 +169,14 @@ cython_debug/
 # Large data files
 data/cricsheet_all_male_json.zip
 data/cricsheet/
+
+# TTS cache and output
+.tts_cache/
+output/
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+
+# But allow frontend src lib
+!frontend/src/lib/

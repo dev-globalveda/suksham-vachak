@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --accent-benaud: #f5f5dc;
+  --accent-greig: #dc143c;
+  --accent-doshi: #ff9933;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Cinematic gradients */
+.gradient-benaud {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2a26 50%, #1a1a1a 100%);
+}
+
+.gradient-greig {
+  background: linear-gradient(135deg, #1a0a0a 0%, #2d1a1a 50%, #1a0a0a 100%);
+}
+
+.gradient-doshi {
+  background: linear-gradient(135deg, #1a1408 0%, #2d2210 50%, #1a1408 100%);
+}
+
+/* Text animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Persona-specific typography */
+.font-benaud {
+  font-family: "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.02em;
+}
+
+.font-greig {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.font-doshi {
+  font-family: var(--font-noto-devanagari), "Noto Sans Devanagari", system-ui,
+    sans-serif;
+}
+
+/* Audio waveform animation */
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 40px;
+}
+
+.waveform-bar {
+  width: 4px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+.waveform-bar.playing {
+  animation: waveform 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes waveform {
+  from {
+    height: 20%;
+  }
+  to {
+    height: 100%;
+  }
+}
+
+.waveform-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+.waveform-bar:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.waveform-bar:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.waveform-bar:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.waveform-bar:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.waveform-bar:nth-child(6) {
+  animation-delay: 0.05s;
+}
+.waveform-bar:nth-child(7) {
+  animation-delay: 0.3s;
+}
+.waveform-bar:nth-child(8) {
+  animation-delay: 0.1s;
+}
+
+/* Moment cards */
+.moment-card {
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+}
+
+.moment-card:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(8px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.moment-card.wicket {
+  border-left: 4px solid #dc143c;
+}
+
+.moment-card.six {
+  border-left: 4px solid #ffd700;
+}
+
+.moment-card.four {
+  border-left: 4px solid #32cd32;
+}
+
+.moment-card.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Commentary display */
+.commentary-text {
+  font-size: 3rem;
+  line-height: 1.3;
+  text-align: center;
+  padding: 2rem;
+}
+
+.commentary-text.benaud {
+  font-family: "Georgia", serif;
+  font-style: italic;
+  color: #f5f5dc;
+}
+
+.commentary-text.greig {
+  font-family: system-ui, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #dc143c;
+}
+
+.commentary-text.doshi {
+  font-family: var(--font-noto-devanagari), "Noto Sans Devanagari", sans-serif;
+  color: #ff9933;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Persona card hover effects */
+.persona-card {
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.persona-card:hover {
+  transform: scale(1.02);
+}
+
+.persona-card.selected {
+  border-color: currentColor;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

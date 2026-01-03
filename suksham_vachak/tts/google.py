@@ -41,7 +41,7 @@ class GoogleTTSProvider(TTSProvider):
         "greig": "en-GB-Wavenet-B",  # British male, energetic
         "bhogle": "en-IN-Wavenet-C",  # Indian English male
         # Hindi voices
-        "doshi": "hi-IN-Wavenet-A",  # Hindi male
+        "doshi": "hi-IN-Wavenet-B",  # Hindi male (A is female!)
         "hindi_female": "hi-IN-Wavenet-D",  # Hindi female
         # Tamil voices
         "tamil_male": "ta-IN-Wavenet-B",  # Tamil male
@@ -90,9 +90,8 @@ class GoogleTTSProvider(TTSProvider):
             if self._credentials_path:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self._credentials_path
 
-            if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-                msg = "GOOGLE_APPLICATION_CREDENTIALS not set. Provide credentials_path or set env var."
-                raise TTSCredentialsError(msg)
+            # Note: google-cloud library auto-detects Application Default Credentials (ADC)
+            # from gcloud auth application-default login, so explicit env var not required
 
             try:
                 self._client = texttospeech.TextToSpeechClient()
@@ -243,29 +242,30 @@ class GoogleTTSProvider(TTSProvider):
 
     @classmethod
     def get_voice_for_persona(cls, persona_name: str, language: str = "en") -> str:
-        """Get recommended voice ID for a persona.
+        """Get recommended voice ID for a persona and language.
 
         Args:
             persona_name: Persona name (e.g., 'Richie Benaud').
-            language: Language code (e.g., 'en', 'hi').
+            language: Target language code (e.g., 'en', 'hi').
 
         Returns:
-            Voice ID string.
+            Voice ID string appropriate for the persona style in the target language.
         """
-        # Normalize persona name
+        # If Hindi is requested, use Hindi voice regardless of persona
+        if language.startswith("hi"):
+            return cls.RECOMMENDED_VOICES["doshi"]  # hi-IN-Wavenet-B (male)
+
+        # For English, select voice based on persona's accent/style
         name_lower = persona_name.lower()
 
         if "benaud" in name_lower:
-            return cls.RECOMMENDED_VOICES["benaud"]
+            return cls.RECOMMENDED_VOICES["benaud"]  # Australian
         elif "greig" in name_lower:
-            return cls.RECOMMENDED_VOICES["greig"]
+            return cls.RECOMMENDED_VOICES["greig"]  # British
         elif "bhogle" in name_lower or "harsha" in name_lower:
-            return cls.RECOMMENDED_VOICES["bhogle"]
+            return cls.RECOMMENDED_VOICES["bhogle"]  # Indian English
         elif "doshi" in name_lower or "sushil" in name_lower:
-            return cls.RECOMMENDED_VOICES["doshi"]
+            return cls.RECOMMENDED_VOICES["bhogle"]  # Indian English for Doshi in English
 
-        # Default based on language
-        if language.startswith("hi"):
-            return cls.RECOMMENDED_VOICES["hi_default"]
-        else:
-            return cls.RECOMMENDED_VOICES["en_default"]
+        # Default
+        return cls.RECOMMENDED_VOICES["en_default"]

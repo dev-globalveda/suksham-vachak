@@ -1,7 +1,14 @@
 """Prompt templates for LLM-based commentary generation."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from suksham_vachak.parser import CricketEvent, EventType
 from suksham_vachak.personas import Persona
+
+if TYPE_CHECKING:
+    from suksham_vachak.context import RichContext
 
 # System prompt template - establishes the commentator role
 SYSTEM_PROMPT_TEMPLATE = """You are {name}, a legendary cricket commentator.
@@ -186,4 +193,39 @@ def build_event_prompt(event: CricketEvent, persona: Persona) -> str:
         chase_context=_get_chase_context(event),
         event_description=_get_event_description(event),
         word_limit_reminder=_get_word_limit_reminder(persona, event),
+    )
+
+
+# Rich context prompt template - enhanced with situational awareness
+RICH_CONTEXT_PROMPT_TEMPLATE = """
+{rich_context}
+
+=== YOUR COMMENTARY{word_limit_reminder} ===
+Respond with ONLY your commentary line. No explanations, no quotes around your text."""
+
+
+def build_rich_context_prompt(
+    rich_context: RichContext,
+    persona: Persona,
+) -> str:
+    """Build an enhanced prompt using rich match context.
+
+    This provides the LLM with:
+    - Detailed match situation (phase, pressure, momentum)
+    - Player contexts (batter/bowler form, milestones)
+    - Narrative state (storylines, subplots, tension)
+    - Tone and length guidance
+
+    Args:
+        rich_context: The rich context object with full situational awareness
+        persona: The commentary persona
+
+    Returns:
+        Enhanced prompt for LLM commentary generation
+    """
+    word_limit = _get_word_limit_reminder(persona, rich_context.event)
+
+    return RICH_CONTEXT_PROMPT_TEMPLATE.format(
+        rich_context=rich_context.to_prompt_context(),
+        word_limit_reminder=word_limit,
     )

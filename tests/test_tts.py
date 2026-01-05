@@ -369,7 +369,7 @@ class TestVoiceMapping:
     def test_google_hindi_default(self) -> None:
         """Google should default to Hindi voice for Hindi language."""
         voice = GoogleTTSProvider.get_voice_for_persona("Unknown Persona", "hi")
-        assert voice == "hi-IN-Wavenet-A"
+        assert voice == "hi-IN-Wavenet-B"  # Male Hindi voice
 
     def test_azure_benaud_voice(self) -> None:
         """Azure should map Benaud to Australian neural voice."""

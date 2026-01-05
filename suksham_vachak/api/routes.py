@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -10,10 +12,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from suksham_vachak.commentary import CommentaryEngine
+from suksham_vachak.context import ContextBuilder
 from suksham_vachak.parser import CricsheetParser, EventType
 from suksham_vachak.personas import BENAUD, DOSHI, GREIG
 from suksham_vachak.tts import AudioFormat
 from suksham_vachak.tts.prosody import ProsodyController
+
+logger = logging.getLogger(__name__)
+
+# Check if LLM is available
+LLM_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -71,6 +79,7 @@ class CommentaryRequest(BaseModel):
     ball_number: str
     persona_id: str
     language: str = "en"  # "en" or "hi"
+    use_llm: bool = True  # Use LLM for generation (falls back to templates if unavailable)
 
 
 class CommentaryResponse(BaseModel):
@@ -231,51 +240,62 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
 
     persona = PERSONAS[request.persona_id]
 
-    # Find the specific event
+    # Find the specific event and build context
     parser = CricsheetParser(json_file)
     target_event = None
+    target_innings = None
 
     for innings_num in [1, 2]:
         try:
             for event in parser.parse_innings(innings_number=innings_num):
                 if event.ball_number == request.ball_number:
                     target_event = event
+                    target_innings = innings_num
                     break
             if target_event:
                 break
         except Exception as e:
-            print(f"Failed to parse innings {innings_num}: {e}")
+            logger.warning("Failed to parse innings %d: %s", innings_num, e)
             continue
 
     if not target_event:
         raise HTTPException(status_code=404, detail=f"Ball {request.ball_number} not found in match {request.match_id}")
 
-    # Generate commentary
-    engine = CommentaryEngine(use_llm=False)
+    # Build context by processing events up to the target
+    context_builder = ContextBuilder(parser.match_info)
+
+    # Process all events up to and including target to build proper context
+    for event in parser.parse_innings(innings_number=target_innings):
+        context_builder.build(event)
+        if event.ball_number == request.ball_number:
+            break
+
+    # Determine if we should use LLM
+    use_llm = request.use_llm and LLM_AVAILABLE
+
+    # Generate commentary with context
+    engine = CommentaryEngine(use_llm=use_llm, context_builder=context_builder)
     commentary = engine.generate(target_event, persona)
 
-    # Determine language from request
-    target_language = request.language  # "en" or "hi"
+    # Get the text - LLM generates in persona's language naturally
+    text = commentary.text
 
-    # Get the appropriate text based on language
-    emotion_key = _event_type_to_emotion(target_event.event_type)
+    # If LLM didn't generate text or LLM is disabled, use fallbacks
+    if not text:
+        target_language = request.language
+        emotion_key = _event_type_to_emotion(target_event.event_type)
 
-    if target_language == "hi":
-        # Hindi phrases - use Doshi-style phrases for all personas when Hindi is selected
-        hindi_phrases = {
-            "wicket": "आउट! और गया!",
-            "boundary_six": "छक्का! क्या मारा है!",
-            "boundary_four": "चौका! शानदार शॉट!",
-            "dot_ball": "",
-            "single": "एक रन",
-            "dramatic": "क्या बात है!",
-        }
-        text = hindi_phrases.get(emotion_key, "शानदार!")
-    else:
-        # Use English commentary
-        text = commentary.text
-        if not text:
-            # Fallback English phrases based on persona style
+        if target_language == "hi":
+            hindi_phrases = {
+                "wicket": "आउट! और गया!",
+                "boundary_six": "छक्का! क्या मारा है!",
+                "boundary_four": "चौका! शानदार शॉट!",
+                "dot_ball": "",
+                "single": "एक रन",
+                "dramatic": "क्या बात है!",
+            }
+            text = hindi_phrases.get(emotion_key, "शानदार!")
+        else:
             if persona.name == "Richie Benaud":
                 english_fallbacks = {
                     "wicket": "Gone.",
@@ -283,7 +303,7 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
                     "boundary_four": "Lovely shot.",
                     "dramatic": "Marvellous.",
                 }
-            else:  # Tony Greig style
+            else:
                 english_fallbacks = {
                     "wicket": "That's OUT! What a moment!",
                     "boundary_six": "That's gone all the way! SIX!",

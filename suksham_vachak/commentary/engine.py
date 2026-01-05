@@ -1,14 +1,19 @@
 """Commentary engine for generating cricket commentary."""
 
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from suksham_vachak.parser import CricketEvent, EventType
 from suksham_vachak.personas import Persona
 
 from .llm import LLMClient, LLMResponse
-from .prompts import build_event_prompt, build_system_prompt
+from .prompts import build_event_prompt, build_rich_context_prompt, build_system_prompt
+
+if TYPE_CHECKING:
+    from suksham_vachak.context import ContextBuilder, RichContext
 
 
 @dataclass
@@ -21,6 +26,7 @@ class Commentary:
     language: str = "en"
     used_llm: bool = False
     llm_response: LLMResponse | None = None
+    rich_context: RichContext | None = None  # Enhanced context when available
 
 
 @dataclass
@@ -157,6 +163,7 @@ class CommentaryEngine:
         default_language: str = "en",
         use_llm: bool = False,
         llm_client: LLMClient | None = None,
+        context_builder: ContextBuilder | None = None,
     ) -> None:
         """Initialize the commentary engine.
 
@@ -165,10 +172,13 @@ class CommentaryEngine:
             use_llm: Whether to use LLM for generation. Falls back to templates if False.
             llm_client: Pre-configured LLM client. If use_llm=True and not provided,
                         a new client will be created using ANTHROPIC_API_KEY env var.
+            context_builder: Optional ContextBuilder for rich context generation.
+                            When provided, LLM prompts include enhanced situational context.
         """
         self.default_language = default_language
         self.use_llm = use_llm
         self._llm_client = llm_client
+        self.context_builder = context_builder
 
         # Cache system prompts per persona to avoid rebuilding
         self._system_prompt_cache: dict[str, str] = {}
@@ -198,25 +208,35 @@ class CommentaryEngine:
         """
         lang = language or self.default_language
 
+        # Build rich context if context builder is available
+        rich_context: RichContext | None = None
+        if self.context_builder is not None:
+            rich_context = self.context_builder.build(event)
+
         # Try LLM first if enabled
         if self.use_llm and self.llm_client is not None:
-            return self._generate_with_llm(event, persona, lang)
+            return self._generate_with_llm(event, persona, lang, rich_context)
 
         # Fall back to template-based generation
-        return self._generate_with_templates(event, persona, lang)
+        return self._generate_with_templates(event, persona, lang, rich_context)
 
     def _generate_with_llm(
         self,
         event: CricketEvent,
         persona: Persona,
         language: str,
+        rich_context: RichContext | None = None,
     ) -> Commentary:
         """Generate commentary using the LLM."""
         # Get or build system prompt (cached per persona)
         system_prompt = self._get_system_prompt(persona)
 
         # Build event-specific user prompt
-        user_prompt = build_event_prompt(event, persona)
+        # Use rich context prompt if available, otherwise basic event prompt
+        if rich_context is not None:
+            user_prompt = build_rich_context_prompt(rich_context, persona)
+        else:
+            user_prompt = build_event_prompt(event, persona)
 
         # Determine max tokens based on minimalism
         max_tokens = 20 if persona.is_minimalist else 100
@@ -224,7 +244,7 @@ class CommentaryEngine:
         # Call LLM (type guard - we checked use_llm and llm_client above)
         client = self.llm_client
         if client is None:
-            return self._generate_with_templates(event, persona, language)
+            return self._generate_with_templates(event, persona, language, rich_context)
 
         llm_response = client.complete(
             system_prompt=system_prompt,
@@ -236,6 +256,10 @@ class CommentaryEngine:
         word_limit = _get_word_limit(event, persona)
         text = _enforce_word_limit(llm_response.text, word_limit)
 
+        # Track recently used phrases to avoid repetition
+        if self.context_builder is not None and text:
+            self.context_builder.add_phrase_to_avoid(text)
+
         return Commentary(
             text=text,
             event=event,
@@ -243,6 +267,7 @@ class CommentaryEngine:
             language=language,
             used_llm=True,
             llm_response=llm_response,
+            rich_context=rich_context,
         )
 
     def _get_system_prompt(self, persona: Persona) -> str:
@@ -256,6 +281,7 @@ class CommentaryEngine:
         event: CricketEvent,
         persona: Persona,
         language: str,
+        rich_context: RichContext | None = None,
     ) -> Commentary:
         """Generate commentary using templates."""
         # Check if persona has a direct emotion mapping for this event type
@@ -272,6 +298,7 @@ class CommentaryEngine:
             language=language,
             used_llm=False,
             llm_response=None,
+            rich_context=rich_context,
         )
 
     def _get_persona_phrase(self, event: CricketEvent, persona: Persona) -> str | None:

@@ -280,9 +280,11 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
     # Get the text - LLM generates in persona's language naturally
     text = commentary.text
 
+    # Determine target language for TTS
+    target_language = request.language
+
     # If LLM didn't generate text or LLM is disabled, use fallbacks
     if not text:
-        target_language = request.language
         emotion_key = _event_type_to_emotion(target_event.event_type)
 
         if target_language == "hi":

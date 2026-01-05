@@ -522,7 +522,7 @@ export default function Home() {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={handleGenerateCommentary}
+                        onClick={() => handleGenerateCommentary()}
                         className="px-8 py-4 rounded-full font-semibold transition-all"
                         style={{
                           backgroundColor: selectedPersona?.color,

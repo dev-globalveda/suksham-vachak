@@ -22,6 +22,34 @@ Suksham Vachak is a personalized AI cricket commentary platform that generates a
 
 ---
 
+## Visual Architecture Diagram
+
+![System Architecture](architecture.svg)
+
+> **Note**: View the [PNG version](architecture.png) or [D2 source](architecture.d2) for editing.
+
+### Component to Code Mapping
+
+| Diagram Component       | Code Path                             | Description                                          |
+| ----------------------- | ------------------------------------- | ---------------------------------------------------- |
+| **Frontend**            | `frontend/src/app/page.tsx`           | Next.js UI with persona/language selection           |
+| **FastAPI Routes**      | `suksham_vachak/api/routes.py`        | `POST /api/commentary` endpoint                      |
+| **Cricsheet JSON**      | `data/cricsheet_sample/*.json`        | Ball-by-ball match data input                        |
+| **Cricket Parser**      | `suksham_vachak/parser/cricsheet.py`  | Parses JSON → `CricketEvent` objects                 |
+| **Match Situation**     | `suksham_vachak/context/builder.py`   | `_build_match_situation()` - score, phase, target    |
+| **Player Context**      | `suksham_vachak/context/builder.py`   | `_build_batter_context()`, `_build_bowler_context()` |
+| **Pressure Calculator** | `suksham_vachak/context/pressure.py`  | `PressureCalculator.calculate()`                     |
+| **Narrative Tracker**   | `suksham_vachak/context/narrative.py` | `NarrativeTracker.update()`                          |
+| **RichContext**         | `suksham_vachak/context/models.py`    | `RichContext.to_prompt_context()`                    |
+| **Personas**            | `suksham_vachak/personas/*.py`        | Benaud, Greig, Doshi persona definitions             |
+| **Claude LLM**          | `suksham_vachak/commentary/llm.py`    | `LLMClient.complete()`                               |
+| **Prosody Control**     | `suksham_vachak/tts/prosody.py`       | `apply_prosody()` - SSML generation                  |
+| **Voice Mapping**       | `suksham_vachak/tts/google.py`        | `get_voice_for_persona()`                            |
+| **Google Cloud TTS**    | `suksham_vachak/tts/google.py`        | `synthesize()` - audio generation                    |
+| **Audio Output**        | API Response                          | MP3 / Base64 in `CommentaryResponse`                 |
+
+---
+
 ## Current Architecture (Phases 1 & 2 Complete)
 
 ```
@@ -533,6 +561,7 @@ Every implementation must pass the Benaud Test:
 | ------- | ---------- | ------ | ------------------------------------------ |
 | 1.0     | 2026-01-01 | Team   | Initial architecture                       |
 | 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs |
+| 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table    |
 
 ---
 

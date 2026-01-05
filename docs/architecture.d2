@@ -1,32 +1,76 @@
 # Suksham Vachak - System Architecture
-# Simplified, readable layout
+# Maps directly to Python code paths
 
 direction: down
 
-# Global styling
 style: {
   fill: "#fafafa"
+}
+
+# ============================================
+# FRONTEND
+# ============================================
+frontend: {
+  label: "FRONTEND"
+  style: {
+    fill: "#e1f5fe"
+    stroke: "#0288d1"
+    border-radius: 12
+    font-size: 16
+    bold: true
+  }
+
+  ui: "Next.js UI\nfrontend/src/app/page.tsx" {
+    style: {
+      fill: "#b3e5fc"
+      stroke: "#0277bd"
+      font-size: 12
+    }
+  }
+}
+
+# ============================================
+# API LAYER
+# ============================================
+api: {
+  label: "FASTAPI"
+  style: {
+    fill: "#e8eaf6"
+    stroke: "#3f51b5"
+    stroke-width: 2
+    border-radius: 12
+    font-size: 16
+    bold: true
+  }
+
+  routes: "POST /api/commentary\nsuksham_vachak/api/routes.py" {
+    style: {
+      fill: "#c5cae9"
+      stroke: "#303f9f"
+      font-size: 12
+    }
+  }
 }
 
 # ============================================
 # INPUT LAYER
 # ============================================
 input: {
-  label: "INPUT"
+  label: "DATA INPUT"
   style: {
     fill: "#e3f2fd"
     stroke: "#1976d2"
     border-radius: 12
-    font-size: 16
+    font-size: 14
     bold: true
   }
 
-  cricsheet: "Cricsheet JSON\n(ball-by-ball data)" {
+  cricsheet: "Cricsheet JSON\ndata/cricsheet_sample/*.json" {
     shape: document
     style: {
       fill: "#bbdefb"
       stroke: "#1565c0"
-      font-size: 14
+      font-size: 12
     }
   }
 }
@@ -34,70 +78,70 @@ input: {
 # ============================================
 # PARSER
 # ============================================
-parser: "Cricket Parser\n→ CricketEvent objects" {
+parser: "Cricket Parser\nsuksham_vachak/parser/cricsheet.py\n→ CricketEvent objects" {
   shape: hexagon
   style: {
     fill: "#fff3e0"
     stroke: "#ef6c00"
-    font-size: 14
+    font-size: 12
   }
 }
 
 # ============================================
-# CONTEXT BUILDER (Main Intelligence)
+# CONTEXT BUILDER
 # ============================================
 context: {
-  label: "CONTEXT BUILDER"
+  label: "CONTEXT BUILDER\nsuksham_vachak/context/"
   style: {
     fill: "#fff8e1"
     stroke: "#f9a825"
     stroke-width: 3
     border-radius: 16
-    font-size: 18
+    font-size: 14
     bold: true
   }
 
   grid-columns: 2
 
-  match: "Match Situation\n• Score, overs, phase\n• Target, required rate\n• Balls remaining" {
+  match: "Match Situation\nbuilder.py\n_build_match_situation()" {
     style: {
       fill: "#fffde7"
       stroke: "#fbc02d"
-      font-size: 12
+      font-size: 11
     }
   }
 
-  player: "Player Context\n• Batter: runs, SR, form\n• Bowler: spell, economy\n• Partnership stats" {
+  player: "Player Context\nbuilder.py\n_build_batter_context()" {
     style: {
       fill: "#fffde7"
       stroke: "#fbc02d"
-      font-size: 12
+      font-size: 11
     }
   }
 
-  pressure: "Pressure Calculator\n• Phase-based (0.2-0.5)\n• Chase pressure\n• Wicket clusters\n• Dot ball tension" {
+  pressure: "Pressure Calculator\npressure.py\nPressureCalculator.calculate()" {
     style: {
       fill: "#fff9c4"
       stroke: "#f9a825"
-      font-size: 12
+      font-size: 11
     }
   }
 
-  narrative: "Narrative Tracker\n• Storylines\n• Momentum shifts\n• Milestones approaching\n• Dramatic potential" {
+  narrative: "Narrative Tracker\nnarrative.py\nNarrativeTracker.update()" {
     style: {
       fill: "#fff9c4"
       stroke: "#f9a825"
-      font-size: 12
+      font-size: 11
     }
   }
 }
 
-rich: "RichContext\nto_prompt_context()" {
+rich: "RichContext\ncontext/models.py\nto_prompt_context()" {
   shape: parallelogram
   style: {
     fill: "#f3e5f5"
     stroke: "#7b1fa2"
-    font-size: 14
+    font-size: 12
     bold: true
   }
 }
@@ -106,48 +150,60 @@ rich: "RichContext\nto_prompt_context()" {
 # COMMENTARY ENGINE
 # ============================================
 commentary: {
-  label: "COMMENTARY ENGINE"
+  label: "COMMENTARY ENGINE\nsuksham_vachak/commentary/"
   style: {
     fill: "#ede7f6"
     stroke: "#5e35b1"
     stroke-width: 3
     border-radius: 16
-    font-size: 18
+    font-size: 14
     bold: true
   }
 
-  grid-columns: 3
+  grid-columns: 2
+  grid-rows: 2
 
-  benaud: "BENAUD\nMinimalist\n\"Four.\"" {
+  personas: {
+    label: "Personas\npersonas/*.py"
     style: {
-      fill: "#f5f5dc"
-      stroke: "#8d6e63"
-      font-size: 13
+      fill: "#d1c4e9"
+      stroke: "#512da8"
+      font-size: 11
+    }
+
+    grid-columns: 3
+
+    benaud: "Benaud\n\"Four.\"" {
+      style: {
+        fill: "#f5f5dc"
+        stroke: "#8d6e63"
+        font-size: 10
+      }
+    }
+
+    greig: "Greig\n\"Tremendous!\"" {
+      style: {
+        fill: "#ffcdd2"
+        stroke: "#c62828"
+        font-size: 10
+      }
+    }
+
+    doshi: "Doshi\n\"शानदार!\"" {
+      style: {
+        fill: "#ffe0b2"
+        stroke: "#e65100"
+        font-size: 10
+      }
     }
   }
 
-  greig: "GREIG\nDramatic\n\"Tremendous!\"" {
-    style: {
-      fill: "#ffcdd2"
-      stroke: "#c62828"
-      font-size: 13
-    }
-  }
-
-  doshi: "DOSHI\nHindi\n\"शानदार!\"" {
-    style: {
-      fill: "#ffe0b2"
-      stroke: "#e65100"
-      font-size: 13
-    }
-  }
-
-  llm: "Claude LLM\n(Haiku/Sonnet)" {
+  llm: "Claude LLM\ncommentary/llm.py\nLLMClient.complete()" {
     shape: cylinder
     style: {
       fill: "#d1c4e9"
       stroke: "#512da8"
-      font-size: 13
+      font-size: 11
     }
   }
 }
@@ -156,40 +212,40 @@ commentary: {
 # TTS ENGINE
 # ============================================
 tts: {
-  label: "TTS ENGINE"
+  label: "TTS ENGINE\nsuksham_vachak/tts/"
   style: {
     fill: "#e0f2f1"
     stroke: "#00897b"
     stroke-width: 3
     border-radius: 16
-    font-size: 18
+    font-size: 14
     bold: true
   }
 
   grid-columns: 3
 
-  voices: "Voice Mapping\nen-AU (Benaud)\nen-GB (Greig)\nhi-IN (Doshi)" {
+  prosody: "Prosody Control\nprosody.py\napply_prosody()" {
     style: {
       fill: "#b2dfdb"
       stroke: "#00796b"
-      font-size: 12
+      font-size: 11
     }
   }
 
-  prosody: "Prosody Control\nWicket → pause\nSix → excited\nDot → subdued" {
+  voices: "Voice Mapping\ngoogle.py\nget_voice_for_persona()" {
     style: {
       fill: "#b2dfdb"
       stroke: "#00796b"
-      font-size: 12
+      font-size: 11
     }
   }
 
-  google: "Google Cloud\nWaveNet TTS" {
+  google: "Google Cloud TTS\ngoogle.py\nsynthesize()" {
     shape: cloud
     style: {
       fill: "#80cbc4"
       stroke: "#00695c"
-      font-size: 12
+      font-size: 11
     }
   }
 }
@@ -197,12 +253,12 @@ tts: {
 # ============================================
 # OUTPUT
 # ============================================
-output: "AUDIO OUTPUT\nMP3 / Base64 stream" {
+output: "AUDIO OUTPUT\nMP3 / Base64\nCommentaryResponse" {
   shape: oval
   style: {
     fill: "#c8e6c9"
     stroke: "#2e7d32"
-    font-size: 16
+    font-size: 14
     bold: true
   }
 }
@@ -215,7 +271,7 @@ future: "PHASE 3: Déjà Vu Engine\n(Vector DB + Historical Retrieval)" {
     fill: "#f5f5f5"
     stroke: "#9e9e9e"
     stroke-dash: 5
-    font-size: 12
+    font-size: 11
     italic: true
   }
 }
@@ -223,38 +279,50 @@ future: "PHASE 3: Déjà Vu Engine\n(Vector DB + Historical Retrieval)" {
 # ============================================
 # CONNECTIONS
 # ============================================
-input -> parser: parse {
+frontend -> api: "HTTP POST" {
   style.stroke-width: 2
 }
 
-parser -> context: events {
+api -> input: "load JSON" {
   style.stroke-width: 2
 }
 
-context -> rich: build {
+input -> parser: "parse" {
   style.stroke-width: 2
 }
 
-rich -> commentary: prompt {
+parser -> context: "CricketEvent" {
   style.stroke-width: 2
 }
 
-commentary -> tts: text {
+context -> rich: "build()" {
   style.stroke-width: 2
 }
 
-tts -> output: synthesize {
+rich -> commentary: "prompt" {
   style.stroke-width: 2
 }
 
-rich -> future: embed {
+commentary -> tts: "text" {
+  style.stroke-width: 2
+}
+
+tts -> output: "synthesize" {
+  style.stroke-width: 2
+}
+
+output -> frontend: "JSON response" {
+  style.stroke-width: 2
+}
+
+rich -> future: "embed" {
   style: {
     stroke: "#9e9e9e"
     stroke-dash: 5
   }
 }
 
-future -> commentary: "reminds me of..." {
+future -> commentary: "\"reminds me of...\"" {
   style: {
     stroke: "#9e9e9e"
     stroke-dash: 5

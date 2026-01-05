@@ -1,488 +1,415 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 1.0
-> **Last Updated**: January 1, 2026
-> **Status**: Approved for MVP Development
+> **Document Version**: 2.0
+> **Last Updated**: January 5, 2026
+> **Status**: Phases 1 & 2 Complete, Phase 3 (RAG) Next
 
 ---
 
 ## Executive Summary
 
-This document defines the technical architecture for Suksham Vachak, a personalized AI commentary platform. We adopt a **phased approach** that allows us to prove our core value proposition (personalized commentary) before tackling the harder problem of live video understanding.
+Suksham Vachak is a personalized AI cricket commentary platform that generates authentic, persona-driven commentary from match data. The system uses LLMs with rich situational context to produce commentary that captures each commentator's unique style.
 
-**Key Insight**: Cricsheet JSON data IS the output of a vision-to-events pipeline. By starting with this data, we skip the hardest problem and focus on what makes us unique.
+**What's Working Now**:
+
+- Parse Cricsheet JSON matches
+- Build rich context (pressure, momentum, narrative)
+- Generate LLM-powered commentary in multiple personas
+- Convert to speech with persona-appropriate prosody
+- Web frontend with persona/language selection
+
+**Key Differentiator**: The Context Builder provides the LLM with deep situational awareness - not just "what happened" but "what it means" (pressure level, momentum shifts, storylines, player form).
 
 ---
 
-## Architecture Overview
-
-### The Full Vision (End State)
+## Current Architecture (Phases 1 & 2 Complete)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SUKSHAM VACHAK - FULL SYSTEM                        │
+│                     SUKSHAM VACHAK - CURRENT SYSTEM                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────┐    ┌──────────────┐    ┌─────────────────┐    ┌─────────────┐ │
-│  │  Video  │───→│ Vision Model │───→│ Event Extractor │───→│   Unified   │ │
-│  │  Feed   │    │  (YOLO/CSP)  │    │   (Custom ML)   │    │   Event     │ │
-│  └─────────┘    └──────────────┘    └─────────────────┘    │   Schema    │ │
-│                                                             │             │ │
-│  ┌─────────┐                                                │   (JSON)   │ │
-│  │Cricsheet│───────────────────────────────────────────────→│             │ │
-│  │  JSON   │                                                └──────┬──────┘ │
-│  └─────────┘                                                       │        │
-│                                                                    ▼        │
-│                                              ┌─────────────────────────────┐│
-│                                              │     COMMENTARY ENGINE       ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │    Persona Layer      │  ││
-│                                              │  │  ┌─────┐ ┌─────┐     │  ││
-│                                              │  │  │Benaud│ │Doshi│ ... │  ││
-│                                              │  │  └─────┘ └─────┘     │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │   Language Engine     │  ││
-│                                              │  │  EN│HI│TA│TE│BN│...  │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │      LLM Layer        │  ││
-│                                              │  │   (Claude/GPT/etc)    │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              └──────────────┬──────────────┘│
-│                                                             │               │
-│                                                             ▼               │
-│                                              ┌─────────────────────────────┐│
-│                                              │       TTS ENGINE            ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │   Voice Selection     │  ││
-│                                              │  │  (Match to Persona)   │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │   Prosody Control     │  ││
-│                                              │  │  (Emotion, Pace)      │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              │  ┌───────────────────────┐  ││
-│                                              │  │   Audio Generation    │  ││
-│                                              │  │  (Google/Azure TTS)   │  ││
-│                                              │  └───────────────────────┘  ││
-│                                              └──────────────┬──────────────┘│
-│                                                             │               │
-│                                                             ▼               │
-│                                              ┌─────────────────────────────┐│
-│                                              │      OUTPUT LAYER           ││
-│                                              │  • Audio Stream             ││
-│                                              │  • Subtitles                ││
-│                                              │  • Haptic (Accessibility)   ││
-│                                              └─────────────────────────────┘│
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                              │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────────────────┐ │
+│  │  Cricsheet  │───→│   Cricket   │───→│         CONTEXT BUILDER          │ │
+│  │    JSON     │    │   Parser    │    │  ┌────────────────────────────┐  │ │
+│  │             │    │             │    │  │     Match Situation        │  │ │
+│  │ • Ball-by-  │    │ • Events    │    │  │  • Score, overs, phase     │  │ │
+│  │   ball data │    │ • Context   │    │  │  • Target, required rate   │  │ │
+│  │ • Players   │    │ • Match     │    │  └────────────────────────────┘  │ │
+│  │ • Outcomes  │    │   info      │    │  ┌────────────────────────────┐  │ │
+│  └─────────────┘    └─────────────┘    │  │     Player Context         │  │ │
+│                                         │  │  • Batter: runs, SR, form  │  │ │
+│                                         │  │  • Bowler: spell, economy  │  │ │
+│                                         │  │  • Partnership: runs, RR   │  │ │
+│                                         │  └────────────────────────────┘  │ │
+│                                         │  ┌────────────────────────────┐  │ │
+│                                         │  │    Pressure Calculator     │  │ │
+│                                         │  │  • Phase-based pressure    │  │ │
+│                                         │  │  • Chase pressure          │  │ │
+│                                         │  │  • Wicket cluster pressure │  │ │
+│                                         │  └────────────────────────────┘  │ │
+│                                         │  ┌────────────────────────────┐  │ │
+│                                         │  │    Narrative Tracker       │  │ │
+│                                         │  │  • Storylines              │  │ │
+│                                         │  │  • Momentum shifts         │  │ │
+│                                         │  │  • Subplots (milestones)   │  │ │
+│                                         │  └────────────────────────────┘  │ │
+│                                         └────────────────┬─────────────────┘ │
+│                                                          │                   │
+│                                                          ▼                   │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                       COMMENTARY ENGINE                               │   │
+│  │  ┌─────────────────┐   ┌─────────────────┐   ┌──────────────────┐   │   │
+│  │  │  PERSONA LAYER  │   │  PROMPT BUILDER │   │   LLM (Claude)   │   │   │
+│  │  │ ┌─────────────┐ │   │                 │   │                  │   │   │
+│  │  │ │   Benaud    │ │──→│  Rich Context   │──→│  Haiku/Sonnet    │   │   │
+│  │  │ │ minimalist  │ │   │  + Persona      │   │                  │   │   │
+│  │  │ └─────────────┘ │   │  + Guidelines   │   │  Output:         │   │   │
+│  │  │ ┌─────────────┐ │   │                 │   │  "Four."         │   │   │
+│  │  │ │   Greig     │ │   │                 │   │  "Magnificent!"  │   │   │
+│  │  │ │  dramatic   │ │   │                 │   │  "कमाल का शॉट!"   │   │   │
+│  │  │ └─────────────┘ │   │                 │   │                  │   │   │
+│  │  │ ┌─────────────┐ │   │                 │   │                  │   │   │
+│  │  │ │   Doshi     │ │   │                 │   │                  │   │   │
+│  │  │ │   Hindi     │ │   │                 │   │                  │   │   │
+│  │  │ └─────────────┘ │   │                 │   │                  │   │   │
+│  │  └─────────────────┘   └─────────────────┘   └────────┬─────────┘   │   │
+│  └───────────────────────────────────────────────────────┼─────────────┘   │
+│                                                          │                  │
+│                                                          ▼                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                         TTS ENGINE                                    │  │
+│  │  ┌─────────────────┐   ┌─────────────────┐   ┌──────────────────┐   │  │
+│  │  │ VOICE SELECTOR  │   │ PROSODY CONTROL │   │  GOOGLE CLOUD    │   │  │
+│  │  │                 │   │                 │   │     TTS          │   │  │
+│  │  │ Benaud → en-AU  │──→│  Wicket: pause  │──→│                  │   │  │
+│  │  │ Greig  → en-GB  │   │  Six: excited   │   │  WaveNet voices  │   │  │
+│  │  │ Doshi  → hi-IN  │   │  Dot: subdued   │   │  SSML support    │   │  │
+│  │  └─────────────────┘   └─────────────────┘   └────────┬─────────┘   │  │
+│  └───────────────────────────────────────────────────────┼─────────────┘  │
+│                                                          │                 │
+│                                                          ▼                 │
+│                                                 ┌─────────────────┐        │
+│                                                 │  AUDIO OUTPUT   │        │
+│                                                 │  • MP3 stream   │        │
+│                                                 │  • Base64 API   │        │
+│                                                 └─────────────────┘        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phased Development Approach
+## Module Deep Dive
 
-### Phase 1: MVP (Weeks 1-4)
-**Goal**: Prove personalized commentary works with existing data
+### 1. Context Builder (`suksham_vachak/context/`)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PHASE 1: MVP ARCHITECTURE                    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Cricsheet ───→ Cricket ───→ Commentary ───→ TTS ───→ Audio   │
-│     JSON         Parser        Engine                           │
-│                                   │                             │
-│                            ┌──────┴──────┐                      │
-│                            │   PERSONAS  │                      │
-│                            │  • Benaud   │                      │
-│                            │  • Doshi    │                      │
-│                            │  • Osho     │                      │
-│                            │  • Greig    │                      │
-│                            └─────────────┘                      │
-│                                                                 │
-│   [WE HAVE]      [BUILD]       [BUILD]      [BUY]    [OUTPUT]  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+The Context Builder is the brain of the system. It transforms raw cricket events into rich situational context that enables intelligent commentary.
 
-### Phase 2: Enhanced (Months 2-3)
-**Goal**: Multi-language support, more personas, production-ready
+#### 1.1 Models (`models.py`)
 
-- Add Hindi, Tamil, Telugu, Bengali TTS
-- Expand to 10+ personas
-- Build proper web UI
-- Add accessibility modes
-
-### Phase 3: Live Video (Months 4+)
-**Goal**: Real-time video to commentary (Research Phase)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 PHASE 3: LIVE ARCHITECTURE                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Video ───→ Vision ───→ Event ───→ [Same Commentary Engine]   │
-│   Stream     Model       Extractor                              │
-│     │          │            │                                   │
-│  (YouTube)  (YOLO)    (Custom ML)                               │
-│              (Azure)   (Fine-tuned                              │
-│              (Google)   LLM)                                    │
-│                            │                                    │
-│                     ┌──────┴──────┐                             │
-│                     │ CHALLENGES  │                             │
-│                     │ • Player ID │                             │
-│                     │ • Shot type │                             │
-│                     │ • Score     │                             │
-│                     │ • Context   │                             │
-│                     └─────────────┘                             │
-│                                                                 │
-│                  🔬 DEEP RESEARCH REQUIRED 🔬                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Component Specifications
-
-### 1. Cricket Parser (P0 - MVP)
-
-**Purpose**: Transform Cricsheet JSON into standardized event objects
-
-**Input**: Raw Cricsheet JSON
-```json
-{
-  "innings": [{
-    "overs": [{
-      "over": 0,
-      "deliveries": [{
-        "batter": "Rohit Sharma",
-        "bowler": "Shaheen Afridi",
-        "runs": {"batter": 4, "total": 4},
-        ...
-      }]
-    }]
-  }]
-}
-```
-
-**Output**: CricketEvent objects
 ```python
+# Match Phases - Different game situations
+class MatchPhase(Enum):
+    POWERPLAY = "powerplay"        # Overs 1-6 (T20/ODI)
+    MIDDLE_OVERS = "middle_overs"  # Overs 7-15 (T20)
+    DEATH_OVERS = "death_overs"    # Final overs
+    EARLY_INNINGS = "early_innings"
+    LATE_INNINGS = "late_innings"
+
+# Pressure Levels - How tense is the situation?
+class PressureLevel(Enum):
+    CALM = "calm"           # Score: 0.0-0.2
+    BUILDING = "building"   # Score: 0.2-0.4
+    TENSE = "tense"         # Score: 0.4-0.6
+    INTENSE = "intense"     # Score: 0.6-0.8
+    CRITICAL = "critical"   # Score: 0.8-1.0
+
+# Momentum - Who's on top?
+class MomentumState(Enum):
+    BATTING_DOMINANT = "batting_dominant"
+    BOWLING_DOMINANT = "bowling_dominant"
+    BALANCED = "balanced"
+    MOMENTUM_SHIFT = "momentum_shift"
+
+# Player Contexts
 @dataclass
-class CricketEvent:
-    event_type: str          # "BOUNDARY_FOUR", "WICKET", "DOT_BALL"
-    batter: str
-    bowler: str
-    runs: int
-    is_boundary: bool
-    is_wicket: bool
-    wicket_type: Optional[str]
-    match_context: MatchContext
-    timestamp: float
+class BatterContext:
+    name: str
+    runs_scored: int
+    balls_faced: int
+    strike_rate: float
+    approaching_milestone: str | None  # "50", "100"
+    is_new_batter: bool      # < 10 balls
+    is_settled: bool         # 20+ balls, good SR
+    is_struggling: bool      # 15+ balls, low SR
+    dot_ball_pressure: int   # Consecutive dots
+
+@dataclass
+class BowlerContext:
+    name: str
+    overs_bowled: float
+    wickets: int
+    economy: float
+    current_spell_wickets: int
+    is_on_hat_trick: bool
+    is_bowling_well: bool
+    consecutive_dots: int
+
+# The Complete Context
+@dataclass
+class RichContext:
+    event: CricketEvent
+    match: MatchSituation
+    batter: BatterContext
+    bowler: BowlerContext
+    partnership: PartnershipContext
+    recent: RecentEvents
+    narrative: NarrativeState
+    pressure: PressureLevel
+    pressure_score: float  # 0.0-1.0
+    suggested_tone: str    # "calm", "excited", "tense", "dramatic"
+    suggested_length: str  # "short", "medium", "long"
+    avoid_phrases: list[str]  # Recently used phrases
+
+    def to_prompt_context(self) -> str:
+        """Convert to text for LLM prompt."""
+        # Returns structured text like:
+        # === MATCH SITUATION ===
+        # India vs Australia
+        # Score: 156/4 (18.2)
+        # Phase: death_overs
+        #
+        # === BATTER ===
+        # V Kohli: 47 (35), SR: 134.3
+        # Approaching: 50
+        # Status: Well set
+        # ...
 ```
 
-**Complexity**: Low
-**Estimated Time**: 1 day
+#### 1.2 Pressure Calculator (`pressure.py`)
+
+Calculates match pressure based on multiple factors:
+
+```python
+class PressureCalculator:
+    # Base pressure by match phase
+    PHASE_BASE_PRESSURE = {
+        MatchPhase.POWERPLAY: 0.3,
+        MatchPhase.MIDDLE_OVERS: 0.2,
+        MatchPhase.DEATH_OVERS: 0.5,  # Higher base
+    }
+
+    def calculate(self, match, wickets_recent, is_new_batter, balls_since_boundary):
+        pressure = 0.0
+
+        # Phase pressure
+        pressure += self.PHASE_BASE_PRESSURE[match.phase]
+
+        # Chase pressure (required rate vs current rate)
+        if match.is_chase:
+            rate_diff = match.required_rate - match.current_run_rate
+            if rate_diff > 0:
+                pressure += min(0.3, rate_diff * 0.05)
+
+        # Wicket cluster (collapse)
+        if wickets_recent >= 3:
+            pressure += 0.2
+
+        # New batter vulnerability
+        if is_new_batter:
+            pressure += 0.1
+
+        # Dot ball tension
+        if balls_since_boundary > 12:
+            pressure += min(0.15, (balls_since_boundary - 12) * 0.01)
+
+        return clamp(pressure, 0.0, 1.0)
+```
+
+#### 1.3 Narrative Tracker (`narrative.py`)
+
+Tracks the story of the match:
+
+```python
+class NarrativeTracker:
+    def update(self, event, batter_runs, bowler_wickets, partnership):
+        # Detect momentum shifts
+        if consecutive_boundaries >= 3:
+            momentum = MomentumState.BATTING_DOMINANT
+        elif consecutive_dots >= 6:
+            momentum = MomentumState.BOWLING_DOMINANT
+
+        # Build storyline
+        if event.is_wicket and wickets_in_spell >= 2:
+            storyline = f"{event.bowler} is wreaking havoc!"
+        elif consecutive_boundaries >= 3:
+            storyline = f"Boundaries flowing! {event.batter} taking control"
+
+        # Detect subplots (milestones approaching)
+        if 45 <= batter_runs < 50:
+            subplot = f"{event.batter} 5 away from fifty"
+
+        return NarrativeState(
+            current_storyline=storyline,
+            tension_level=tension,
+            momentum=momentum,
+            key_subplot=subplot,
+            dramatic_potential="Century beckons" if batter_runs >= 95 else None
+        )
+```
 
 ---
 
-### 2. Commentary Engine (P0 - MVP)
+### 2. Commentary Engine (`suksham_vachak/commentary/`)
 
-**Purpose**: Generate contextual commentary text from cricket events
-
-**Components**:
-- **Context Builder**: Builds narrative context (match situation, pressure, momentum)
-- **LLM Interface**: Sends prompts to Claude/GPT
-- **Response Parser**: Extracts and validates commentary
-
-**Input**: CricketEvent + Persona + Language
-**Output**: Commentary text
+Generates text commentary using LLM with persona constraints.
 
 ```python
 class CommentaryEngine:
-    def generate(
-        self,
-        event: CricketEvent,
-        persona: Persona,
-        language: str = "en"
-    ) -> str:
-        """Generate commentary for a cricket event."""
-        prompt = self._build_prompt(event, persona, language)
-        response = self.llm.complete(prompt)
-        return self._parse_response(response)
+    def __init__(self, use_llm=True, context_builder=None):
+        self.use_llm = use_llm
+        self.context_builder = context_builder
+        self.llm_client = LLMClient()
+
+    def generate(self, event, persona):
+        # Build rich context
+        if self.context_builder:
+            rich_context = self.context_builder.build(event)
+
+        # Build prompt with context
+        system_prompt = build_system_prompt(persona)
+        user_prompt = build_rich_context_prompt(rich_context, persona)
+
+        # LLM generates commentary
+        response = self.llm_client.complete(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=20 if persona.is_minimalist else 100
+        )
+
+        return Commentary(
+            text=response.text,
+            rich_context=rich_context,
+            used_llm=True
+        )
 ```
 
-**Complexity**: Medium
-**Estimated Time**: 2-3 days
+#### Persona-Specific Outputs
+
+| Event  | Benaud (minimalist=0.95) | Greig (minimalist=0.20)              | Doshi (Hindi)          |
+| ------ | ------------------------ | ------------------------------------ | ---------------------- |
+| FOUR   | "Four."                  | "Tremendous shot! The crowd erupts!" | "चौका! शानदार!"        |
+| SIX    | "Magnificent."           | "That's gone all the way! Maximum!"  | "छक्का! क्या मारा है!" |
+| WICKET | "Gone."                  | "He's OUT! What a moment!"           | "आउट! और गया!"         |
+| DOT    | _(silence)_              | "Good delivery from Cummins."        | ""                     |
 
 ---
 
-### 3. Persona Layer (P0 - MVP)
+### 3. TTS Pipeline (`suksham_vachak/tts/`)
 
-**Purpose**: Inject personality, style, and cultural nuance into commentary
-
-**Persona Definition**:
-```python
-@dataclass
-class Persona:
-    name: str                    # "Richie Benaud"
-    style: str                   # "minimalist"
-    vocabulary: List[str]        # Signature phrases
-    cultural_context: str        # Australian cricket wisdom
-    emotion_range: Dict[str, str]  # How they express emotions
-    signature_phrases: List[str]  # "Marvelous!", "Gone."
-
-    # The Benaud Test
-    minimalism_score: float      # 0.0 = verbose, 1.0 = "Gone."
-```
-
-**MVP Personas**:
-| Persona          | Style                 | Language | Minimalism |
-| ---------------- | --------------------- | -------- | ---------- |
-| Richie Benaud    | Minimalist, Elegant   | EN       | 0.95       |
-| Harsha Bhogle    | Analytical, Warm      | EN/HI    | 0.3        |
-| Sanjay Manjrekar | Technical, Critical   | EN       | 0.4        |
-| Tony Greig       | Exuberant, Dramatic   | EN       | 0.2        |
-| Osho             | Mystic, Philosophical | EN/HI    | 0.7        |
-
-**Complexity**: Medium
-**Estimated Time**: 1-2 days
-
----
-
-### 4. TTS Engine (P1 - MVP)
-
-**Purpose**: Convert commentary text to natural speech
-
-**Providers**:
-- **Primary**: Google Cloud TTS (WaveNet voices)
-- **Fallback**: Azure Cognitive Services
-- **Future**: ElevenLabs (voice cloning)
-
-**Features**:
-- Voice selection per persona
-- Prosody control (pace, pitch, emphasis)
-- SSML support for fine-grained control
-- Multi-language support
+Converts commentary to speech with emotional prosody.
 
 ```python
-class TTSEngine:
-    def synthesize(
-        self,
-        text: str,
-        persona: Persona,
-        language: str,
-        emotion: str = "neutral"
-    ) -> bytes:
-        """Generate speech audio from text."""
-        ssml = self._apply_prosody(text, persona, emotion)
-        return self.provider.synthesize(ssml, voice=persona.voice_id)
+class ProsodyController:
+    EVENT_PROSODY = {
+        EventType.WICKET: {
+            "rate": "slow",      # Dramatic pause
+            "pitch": "+2st",     # Slightly higher
+            "break_before": "500ms"
+        },
+        EventType.BOUNDARY_SIX: {
+            "rate": "fast",      # Excited
+            "pitch": "+4st",     # Much higher
+            "volume": "loud"
+        },
+        EventType.DOT_BALL: {
+            "rate": "medium",
+            "pitch": "-1st",     # Subdued
+            "volume": "soft"
+        }
+    }
+
+    def apply_prosody(self, text, persona, event_type):
+        # Generate SSML with prosody
+        return f"""
+        <speak>
+            <prosody rate="{rate}" pitch="{pitch}">
+                {escaped_text}
+            </prosody>
+        </speak>
+        """
 ```
-
-**Complexity**: Low
-**Estimated Time**: 1 day
-
----
-
-### 5. Language Engine (P2 - Enhanced)
-
-**Purpose**: Generate culturally-appropriate commentary in multiple languages
-
-**Supported Languages (MVP)**:
-- English (EN)
-- Hindi (HI)
-- Tamil (TA)
-
-**Approach**:
-1. Generate in target language directly (preferred)
-2. Fallback: Generate in English, then translate with cultural adaptation
-
-**The Benaud Test for Hindi**:
-```
-English: "Gone."
-Hindi:   "गया।" (NOT "वह खिलाड़ी अब आउट हो गया है।")
-```
-
-**Complexity**: Medium
-**Estimated Time**: 2-3 days
-
----
-
-### 6. Vision-to-Events Pipeline (P3 - Research)
-
-**Purpose**: Extract cricket events from live video
-
-**This is the hardest problem. Challenges include**:
-
-| Challenge                | Difficulty | Notes                                              |
-| ------------------------ | ---------- | -------------------------------------------------- |
-| Player identification    | Very Hard  | Requires face recognition, jersey numbers, context |
-| Shot type classification | Hard       | Pull vs hook, cover drive vs square drive          |
-| Ball tracking            | Medium     | Hawk-Eye does this well                            |
-| Score extraction         | Easy       | OCR from broadcast graphics                        |
-| Context building         | Hard       | Requires understanding game state                  |
-
-**Potential Approaches**:
-1. **YOLO + Custom Classifier**: Detect objects, classify events
-2. **Azure/Google Vision**: Pre-built object detection
-3. **Fine-tuned LLM**: Vision-language models (GPT-4V, Claude Vision)
-4. **Hybrid**: OCR for score + Vision for action
-
-**Status**: Research phase. Not in MVP scope.
 
 ---
 
 ## Data Flow
 
-### MVP Data Flow
-
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Cricsheet  │     │   Cricket   │     │   Event     │
-│    JSON     │────→│   Parser    │────→│   Queue     │
-│             │     │             │     │             │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                    ┌──────────────────────────┘
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                  Commentary Engine                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │   Context   │  │   Persona   │  │     LLM     │  │
-│  │   Builder   │─→│   Applier   │─→│  Interface  │  │
-│  └─────────────┘  └─────────────┘  └──────┬──────┘  │
-└───────────────────────────────────────────┼─────────┘
-                                            │
-                    ┌───────────────────────┘
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│                    TTS Engine                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │    SSML     │  │   Prosody   │  │   Audio     │  │
-│  │  Generator  │─→│   Control   │─→│  Synthesis  │  │
-│  └─────────────┘  └─────────────┘  └──────┬──────┘  │
-└───────────────────────────────────────────┼─────────┘
-                                            │
-                    ┌───────────────────────┘
-                    ▼
-              ┌───────────┐
-              │   Audio   │
-              │   Output  │
-              └───────────┘
+┌─────────────┐
+│  Cricsheet  │
+│    JSON     │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐     For each ball:
+│   Parser    │     ──────────────────────────────────────────────────────────
+└──────┬──────┘                                                               │
+       │                                                                      │
+       ▼                                                                      │
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
+│   Context   │────→│  Pressure   │────→│  Narrative  │────→│    Rich     │  │
+│   Builder   │     │ Calculator  │     │  Tracker    │     │   Context   │  │
+└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘  │
+                                                                   │         │
+       ┌───────────────────────────────────────────────────────────┘         │
+       │                                                                      │
+       ▼                                                                      │
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐                      │
+│   Prompt    │────→│     LLM     │────→│ Commentary  │                      │
+│   Builder   │     │  (Claude)   │     │    Text     │                      │
+└─────────────┘     └─────────────┘     └──────┬──────┘                      │
+                                               │                              │
+       ┌───────────────────────────────────────┘                              │
+       │                                                                      │
+       ▼                                                                      │
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐                      │
+│   Prosody   │────→│  Google TTS │────→│   Audio     │                      │
+│   Control   │     │  (WaveNet)  │     │   Output    │──────────────────────┘
+└─────────────┘     └─────────────┘     └─────────────┘
 ```
 
 ---
 
-## Technology Stack
+## API Reference
 
-### MVP Stack
+### POST /api/commentary
 
-| Layer           | Technology             | Rationale                        |
-| --------------- | ---------------------- | -------------------------------- |
-| Language        | Python 3.11+           | Rich ecosystem, fast prototyping |
-| Package Manager | Poetry                 | Dependency isolation             |
-| LLM             | Claude API (Anthropic) | Best for nuanced text            |
-| TTS             | Google Cloud TTS       | WaveNet quality, multi-language  |
-| UI              | Streamlit              | Rapid prototyping                |
-| API             | FastAPI                | If needed for decoupling         |
-| Data            | JSON files             | Simple, no DB needed for MVP     |
+Generate commentary for a specific moment.
 
-### Production Stack (Future)
+**Request**:
 
-| Layer         | Technology            | Rationale              |
-| ------------- | --------------------- | ---------------------- |
-| Backend       | FastAPI + async       | High concurrency       |
-| Database      | PostgreSQL            | Structured data        |
-| Cache         | Redis                 | Session, audio caching |
-| Queue         | RabbitMQ/Redis        | Event processing       |
-| Storage       | S3/GCS                | Audio files            |
-| CDN           | CloudFront/CloudFlare | Audio delivery         |
-| Orchestration | Kubernetes            | Scaling                |
-
----
-
-## API Contracts
-
-### Internal Event Schema
-
-```python
-from dataclasses import dataclass
-from typing import Optional, List
-from enum import Enum
-
-class EventType(Enum):
-    DOT_BALL = "dot_ball"
-    SINGLE = "single"
-    DOUBLE = "double"
-    TRIPLE = "triple"
-    BOUNDARY_FOUR = "boundary_four"
-    BOUNDARY_SIX = "boundary_six"
-    WICKET = "wicket"
-    WIDE = "wide"
-    NO_BALL = "no_ball"
-    BYE = "bye"
-    LEG_BYE = "leg_bye"
-
-@dataclass
-class MatchContext:
-    match_id: str
-    teams: tuple[str, str]
-    venue: str
-    date: str
-    format: str  # "T20", "ODI", "Test"
-    innings: int
-    current_score: int
-    current_wickets: int
-    overs_completed: float
-    target: Optional[int]  # For chasing team
-    required_rate: Optional[float]
-    current_rate: float
-
-@dataclass
-class CricketEvent:
-    event_id: str
-    event_type: EventType
-    ball_number: str  # "15.3" = over 15, ball 3
-    batter: str
-    bowler: str
-    non_striker: str
-    runs_batter: int
-    runs_extras: int
-    runs_total: int
-    is_boundary: bool
-    is_wicket: bool
-    wicket_type: Optional[str]
-    wicket_player: Optional[str]
-    fielder: Optional[str]
-    match_context: MatchContext
-
-    # Future: from vision
-    shot_type: Optional[str]  # "cover_drive", "pull", "sweep"
-    ball_speed: Optional[float]
-    ball_trajectory: Optional[str]
+```json
+{
+  "match_id": "1000881",
+  "ball_number": "15.3",
+  "persona_id": "benaud",
+  "language": "en",
+  "use_llm": true
+}
 ```
 
-### Commentary Request/Response
+**Response**:
 
-```python
-@dataclass
-class CommentaryRequest:
-    event: CricketEvent
-    persona_id: str
-    language: str
-    include_audio: bool = True
-    audio_format: str = "mp3"
-
-@dataclass
-class CommentaryResponse:
-    text: str
-    audio_url: Optional[str]
-    audio_bytes: Optional[bytes]
-    duration_seconds: float
-    persona_used: str
-    language: str
+```json
+{
+  "text": "Four.",
+  "audio_base64": "//uQxAAAAAANIAAAAAE...",
+  "audio_format": "mp3",
+  "persona_id": "benaud",
+  "event_type": "boundary_four",
+  "duration_seconds": 0.8
+}
 ```
 
 ---
@@ -491,156 +418,110 @@ class CommentaryResponse:
 
 ```
 suksham-vachak/
-├── src/
+├── suksham_vachak/
 │   ├── __init__.py
 │   ├── parser/
 │   │   ├── __init__.py
-│   │   ├── cricsheet.py       # Cricsheet JSON parser
-│   │   └── events.py          # Event dataclasses
+│   │   ├── cricsheet.py        # Cricsheet JSON parser
+│   │   └── events.py           # CricketEvent, MatchContext
+│   ├── context/                # NEW: Context module
+│   │   ├── __init__.py
+│   │   ├── models.py           # RichContext, enums, dataclasses
+│   │   ├── builder.py          # ContextBuilder
+│   │   ├── pressure.py         # PressureCalculator
+│   │   └── narrative.py        # NarrativeTracker
 │   ├── commentary/
 │   │   ├── __init__.py
-│   │   ├── engine.py          # Main commentary engine
-│   │   ├── context.py         # Context builder
-│   │   └── prompts.py         # LLM prompts
+│   │   ├── engine.py           # CommentaryEngine
+│   │   ├── prompts.py          # System/event prompts
+│   │   └── llm.py              # Claude API client
 │   ├── personas/
 │   │   ├── __init__.py
-│   │   ├── base.py            # Persona dataclass
-│   │   ├── benaud.py          # Richie Benaud
-│   │   ├── doshi.py           # Sushil Doshi
-│   │   ├── osho.py            # Osho (mystic)
-│   │   └── registry.py        # Persona registry
+│   │   ├── base.py             # Persona dataclass
+│   │   ├── benaud.py           # Richie Benaud
+│   │   ├── greig.py            # Tony Greig
+│   │   └── doshi.py            # Sushil Doshi
 │   ├── tts/
 │   │   ├── __init__.py
-│   │   ├── engine.py          # TTS abstraction
-│   │   ├── google.py          # Google TTS
-│   │   └── azure.py           # Azure TTS
-│   ├── languages/
-│   │   ├── __init__.py
-│   │   ├── engine.py          # Language handling
-│   │   └── hindi.py           # Hindi specific
-│   └── ui/
+│   │   ├── base.py             # TTSProvider base
+│   │   ├── google.py           # Google Cloud TTS
+│   │   └── prosody.py          # SSML prosody control
+│   └── api/
 │       ├── __init__.py
-│       └── streamlit_app.py   # Demo UI
+│       ├── app.py              # FastAPI app
+│       └── routes.py           # API endpoints
+├── frontend/                   # Next.js frontend
+│   └── src/
+│       └── app/
+│           └── page.tsx        # Main UI
 ├── data/
-│   ├── cricsheet_sample/      # 20 sample matches
-│   └── README.md              # Download instructions
+│   └── cricsheet_sample/       # Sample match data
 ├── tests/
 │   ├── test_parser.py
+│   ├── test_context.py         # NEW: Context tests
 │   ├── test_commentary.py
 │   └── test_tts.py
-├── docs/
-│   ├── VISION.md
-│   ├── ARCHITECTURE.md        # This file
-│   └── PROTOTYPE_BUILD_SCRIPT.md
-├── notebooks/
-│   └── cricket_data_exploration.ipynb
-├── pyproject.toml
-├── README.md
-└── .env.example
+├── demo_llm_commentary.py      # CLI demo script
+└── docs/
+    ├── ARCHITECTURE.md         # This file
+    ├── VISION.md
+    └── ROADMAP.md
 ```
 
 ---
 
-## Development Priorities
+## Development Roadmap
 
-### P0 - Must Have for MVP Demo
-- [ ] Cricket Parser (Cricsheet → Events)
-- [ ] Commentary Engine (Events → Text)
-- [ ] Persona Layer (3 personas: Benaud, Doshi, Osho)
-- [ ] TTS Integration (Google TTS)
-- [ ] Streamlit Demo UI
+### ✅ Phase 1: Context Builder (Complete)
 
-### P1 - Should Have
-- [ ] Hindi language support
-- [ ] Audio caching
-- [ ] More personas (Greig, Bhogle, Manjrekar)
+- [x] MatchPhase, PressureLevel, MomentumState enums
+- [x] BatterContext, BowlerContext, PartnershipContext
+- [x] PressureCalculator with multi-factor scoring
+- [x] NarrativeTracker for storylines and subplots
+- [x] ContextBuilder aggregating all context
+- [x] RichContext.to_prompt_context() for LLM
 
-### P2 - Nice to Have
-- [ ] Tamil language support
-- [ ] Pre-generated commentary library
-- [ ] Accessibility modes
+### ✅ Phase 2: LLM Commentary (Complete)
 
-### P3 - Future Research
-- [ ] Vision model integration
-- [ ] Live video processing
-- [ ] Real-time commentary
+- [x] CommentaryEngine with context_builder support
+- [x] build_rich_context_prompt() for enhanced prompts
+- [x] API routes using context-aware generation
+- [x] Demo script (demo_llm_commentary.py)
+- [x] Persona-specific outputs working
 
----
+### 🔜 Phase 3: RAG - Déjà Vu Engine (Next)
 
-## Claude CLI Development Prompts
+- [ ] Vector database for historical moments
+- [ ] Embed match situations for similarity search
+- [ ] "This reminds me of..." retrieval
+- [ ] Player comparison retrieval
+- [ ] Classic match callbacks
 
-Use these prompts when building with Claude CLI on Mac:
+### 📋 Phase 4: Stats Engine
 
-### Starting the Session
-```
-/plan Let's build Suksham Vachak MVP. I have the architecture in docs/ARCHITECTURE.md.
-Let's start with the Cricket Parser component. Review the architecture and confirm
-you understand the CricketEvent schema.
-```
+- [ ] Player tendency analysis
+- [ ] Matchup statistics
+- [ ] Venue/conditions analysis
+- [ ] Historical averages
 
-### Building Components
-```
-/build Create src/parser/events.py with the CricketEvent and MatchContext dataclasses
-as specified in docs/ARCHITECTURE.md
-```
+### 📋 Phase 5: Forecasting
 
-```
-/build Create src/parser/cricsheet.py that parses Cricsheet JSON files into
-CricketEvent objects. Use data/cricsheet_sample/ for testing.
-```
-
-```
-/build Create src/personas/benaud.py implementing the Richie Benaud persona.
-Remember the minimalism test: "Gone." not "The batsman has been dismissed."
-```
-
-### Testing
-```
-/run python -m pytest tests/test_parser.py -v
-```
-
-### Integration
-```
-/edit Wire up the full pipeline: parser → commentary → TTS.
-Create a simple demo script that takes a match file and generates
-audio commentary for the first over.
-```
+- [ ] Next ball probability prediction
+- [ ] Win probability model
+- [ ] What-if scenario analysis
+- [ ] Field placement suggestions
 
 ---
 
-## Success Criteria
+## The Benaud Test
 
-### MVP Demo (End of Week 2)
-- [ ] Load any Cricsheet match JSON
-- [ ] Generate Benaud-style commentary for key moments
-- [ ] Output audio in English
-- [ ] Demo runs in Streamlit
+Every implementation must pass the Benaud Test:
 
-### Enhanced Demo (End of Month 1)
-- [ ] 5+ personas working
-- [ ] Hindi + English working
-- [ ] Pre-generated audio for sample matches
-- [ ] Shareable demo link
-
-### Production Ready (End of Quarter 1)
-- [ ] 10+ personas
-- [ ] 5+ languages
-- [ ] API for third-party integration
-- [ ] Mobile-responsive UI
-
----
-
-## Appendix: The Benaud Test
-
-Every persona and language implementation must pass the Benaud Test:
-
-**The Test**: Can the system produce minimal, elegant commentary?
-
-| Scenario     | ❌ Fail                                                                                   | ✅ Pass         |
+| Scenario     | ❌ Fail                                                                                  | ✅ Pass        |
 | ------------ | ---------------------------------------------------------------------------------------- | -------------- |
 | Wicket       | "The batsman has been clean bowled by an excellent yorker from the fast bowler"          | "Gone."        |
 | Six          | "What an incredible shot! The ball has sailed over the boundary for a maximum six runs!" | "Magnificent." |
-| Hindi Wicket | "और वह बल्लेबाज अब आउट हो गया है गेंदबाज की शानदार गेंद पर"                                            | "गया।"          |
+| Hindi Wicket | "और वह बल्लेबाज अब आउट हो गया है गेंदबाज की शानदार गेंद पर"                              | "गया।"         |
 
 **Why This Matters**: Verbose AI commentary is worthless. The magic is in restraint.
 
@@ -648,11 +529,12 @@ Every persona and language implementation must pass the Benaud Test:
 
 ## Document History
 
-| Version | Date       | Author | Changes              |
-| ------- | ---------- | ------ | -------------------- |
-| 1.0     | 2026-01-01 | Team   | Initial architecture |
+| Version | Date       | Author | Changes                                    |
+| ------- | ---------- | ------ | ------------------------------------------ |
+| 1.0     | 2026-01-01 | Team   | Initial architecture                       |
+| 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs |
 
 ---
 
-*"The greatest commentary is not about filling silence, but knowing when silence speaks louder."*
-*— Inspired by Richie Benaud*
+_"The greatest commentary is not about filling silence, but knowing when silence speaks louder."_
+_— Inspired by Richie Benaud_

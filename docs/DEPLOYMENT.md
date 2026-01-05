@@ -84,6 +84,54 @@ curl http://localhost:8000/api/matches
 open http://localhost:3000
 ```
 
+## Understanding Docker Images
+
+### Where Are Images Stored?
+
+When you run `docker compose build`, images are built and stored **locally** on your machine:
+
+```
+Your Pi's Docker Cache (private)
+├── suksham-vachak-backend:latest    (~500MB)
+└── suksham-vachak-frontend:latest   (~200MB)
+```
+
+**These images are NOT pushed anywhere** - they exist only on your Pi.
+
+### Dockerfile vs Image vs Container
+
+| Artifact   | What It Is                     | Where It Lives       |
+| ---------- | ------------------------------ | -------------------- |
+| Dockerfile | Build instructions (text file) | GitHub (public)      |
+| Image      | Built application (binary)     | Local Docker cache   |
+| Container  | Running instance of an image   | Local Docker runtime |
+
+### Optional: Push to Registry
+
+If you want pre-built images (faster deploys, CI/CD), you can push to a registry:
+
+**GitHub Container Registry (GHCR):**
+
+```bash
+# Login to GHCR
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Build with registry tag
+docker build -t ghcr.io/dev-globalveda/suksham-vachak-backend:latest .
+docker build -t ghcr.io/dev-globalveda/suksham-vachak-frontend:latest ./frontend
+
+# Push to registry
+docker push ghcr.io/dev-globalveda/suksham-vachak-backend:latest
+docker push ghcr.io/dev-globalveda/suksham-vachak-frontend:latest
+
+# On Pi: Pull instead of build
+docker pull ghcr.io/dev-globalveda/suksham-vachak-backend:latest
+```
+
+**For now:** Just build locally on Pi. Registry is useful for CI/CD or multiple deployments.
+
+---
+
 ## Cloudflare Tunnel Configuration
 
 ### Option A: Using cloudflared CLI

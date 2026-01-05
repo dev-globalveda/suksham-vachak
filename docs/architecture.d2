@@ -1,0 +1,317 @@
+# Suksham Vachak System Architecture
+# D2 Diagram - https://d2lang.com
+
+direction: right
+
+title: {
+  label: Suksham Vachak - System Architecture
+  near: top-center
+  shape: text
+  style: {
+    font-size: 28
+    bold: true
+    font-color: "#1a1a2e"
+  }
+}
+
+# Styling
+classes: {
+  data: {
+    style: {
+      fill: "#e8f4f8"
+      stroke: "#2980b9"
+      border-radius: 8
+    }
+  }
+  processor: {
+    style: {
+      fill: "#fff3e0"
+      stroke: "#e65100"
+      border-radius: 8
+    }
+  }
+  ai: {
+    style: {
+      fill: "#f3e5f5"
+      stroke: "#7b1fa2"
+      border-radius: 8
+    }
+  }
+  output: {
+    style: {
+      fill: "#e8f5e9"
+      stroke: "#2e7d32"
+      border-radius: 8
+    }
+  }
+  persona: {
+    style: {
+      fill: "#fce4ec"
+      stroke: "#c2185b"
+      border-radius: 4
+    }
+  }
+}
+
+# Input Layer
+input: {
+  label: "Data Input"
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#666"
+    stroke-dash: 3
+    border-radius: 12
+  }
+
+  cricsheet: "Cricsheet JSON" {
+    class: data
+  }
+
+  cricsheet.details: |md
+    - Ball-by-ball data
+    - Player info
+    - Match outcomes
+  |
+}
+
+# Parser
+parser: "Cricket Parser" {
+  class: processor
+}
+
+parser.output: |md
+  **CricketEvent**
+  - batter, bowler
+  - runs, wicket
+  - match context
+|
+
+# Context Builder (Main Intelligence)
+context: {
+  label: "Context Builder"
+  style: {
+    fill: "#fff8e1"
+    stroke: "#ff8f00"
+    stroke-width: 2
+    border-radius: 12
+  }
+
+  match: "Match Situation" {
+    class: processor
+  }
+  match.info: |md
+    Score, overs, phase
+    Target, required rate
+  |
+
+  player: "Player Context" {
+    class: processor
+  }
+  player.info: |md
+    Batter: runs, SR, form
+    Bowler: spell, economy
+  |
+
+  pressure: "Pressure Calculator" {
+    class: processor
+  }
+  pressure.info: |md
+    Phase pressure
+    Chase pressure
+    Wicket clusters
+  |
+
+  narrative: "Narrative Tracker" {
+    class: processor
+  }
+  narrative.info: |md
+    Storylines
+    Momentum shifts
+    Milestones
+  |
+
+  match -> player
+  player -> pressure
+  pressure -> narrative
+}
+
+# Rich Context Output
+rich_context: "Rich Context" {
+  class: ai
+  style: {
+    stroke-width: 2
+  }
+}
+
+rich_context.details: |md
+  **to_prompt_context()**
+  - Match situation
+  - Player states
+  - Pressure level
+  - Narrative
+  - Suggested tone
+|
+
+# Commentary Engine
+commentary: {
+  label: "Commentary Engine"
+  style: {
+    fill: "#ede7f6"
+    stroke: "#5e35b1"
+    stroke-width: 2
+    border-radius: 12
+  }
+
+  personas: {
+    label: "Personas"
+    style: {
+      fill: "#fce4ec"
+      stroke: "#c2185b"
+      border-radius: 8
+    }
+
+    benaud: "Benaud\n(minimalist)" {
+      class: persona
+    }
+    greig: "Greig\n(dramatic)" {
+      class: persona
+    }
+    doshi: "Doshi\n(Hindi)" {
+      class: persona
+    }
+  }
+
+  prompt: "Prompt Builder" {
+    class: ai
+  }
+
+  llm: "Claude LLM" {
+    class: ai
+  }
+
+  personas -> prompt
+}
+
+# Commentary Output Examples
+commentary_out: {
+  label: "Commentary"
+  style: {
+    fill: "#e3f2fd"
+    stroke: "#1565c0"
+    border-radius: 8
+  }
+
+  examples: |md
+    **Benaud**: "Four."
+    **Greig**: "Tremendous shot!"
+    **Doshi**: "चौका! शानदार!"
+  |
+}
+
+# TTS Engine
+tts: {
+  label: "TTS Engine"
+  style: {
+    fill: "#e0f2f1"
+    stroke: "#00695c"
+    stroke-width: 2
+    border-radius: 12
+  }
+
+  voice: "Voice Selector" {
+    class: processor
+  }
+  voice.info: |md
+    Benaud → en-AU
+    Greig → en-GB
+    Doshi → hi-IN
+  |
+
+  prosody: "Prosody Control" {
+    class: processor
+  }
+  prosody.info: |md
+    Wicket: pause + slow
+    Six: excited + fast
+    Dot: subdued
+  |
+
+  google: "Google Cloud TTS" {
+    class: output
+  }
+
+  voice -> prosody -> google
+}
+
+# Output
+output: {
+  label: "Output"
+  style: {
+    fill: "#e8f5e9"
+    stroke: "#2e7d32"
+    border-radius: 12
+  }
+
+  audio: "Audio Stream" {
+    class: output
+  }
+
+  audio.info: |md
+    MP3 / Base64
+    ~0.8s - 3s
+  |
+}
+
+# Connections
+input.cricsheet -> parser: "parse"
+parser -> context: "events"
+context.narrative -> rich_context: "build"
+rich_context -> commentary.prompt: "context"
+commentary.prompt -> commentary.llm: "prompt"
+commentary.llm -> commentary_out: "generate"
+commentary_out -> tts.voice: "text"
+tts.google -> output.audio: "synthesize"
+
+# Future Phase Annotation
+future: {
+  label: "Phase 3: Déjà Vu Engine (Coming)"
+  style: {
+    fill: "#fafafa"
+    stroke: "#9e9e9e"
+    stroke-dash: 5
+    border-radius: 8
+    opacity: 0.7
+  }
+
+  vector_db: "Vector DB" {
+    style: {
+      fill: "#fff"
+      stroke: "#bdbdbd"
+      stroke-dash: 3
+    }
+  }
+
+  retrieval: "Historical\nRetrieval" {
+    style: {
+      fill: "#fff"
+      stroke: "#bdbdbd"
+      stroke-dash: 3
+    }
+  }
+
+  vector_db -> retrieval: "similarity"
+}
+
+rich_context -> future.vector_db: "embed" {
+  style: {
+    stroke: "#bdbdbd"
+    stroke-dash: 5
+  }
+}
+
+future.retrieval -> commentary.prompt: "\"reminds me of...\"" {
+  style: {
+    stroke: "#bdbdbd"
+    stroke-dash: 5
+  }
+}

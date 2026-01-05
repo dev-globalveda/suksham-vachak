@@ -1,0 +1,85 @@
+# Suksham Vachak - Docker Compose
+# For deployment on Raspberry Pi with Cloudflare Tunnel
+
+services:
+  # ============================================
+  # Backend API (FastAPI)
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: suksham-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gcp-service-account.json
+    volumes:
+      # Mount GCP credentials (create service account key)
+      - ./credentials:/app/credentials:ro
+      # Mount match data (optional, for adding new matches)
+      - ./data/cricsheet_sample:/app/data/cricsheet_sample:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - suksham-network
+
+  # ============================================
+  # Frontend (Next.js)
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://backend:8000
+    container_name: suksham-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - suksham-network
+
+networks:
+  suksham-network:
+    driver: bridge
+# ============================================
+# Usage:
+# ============================================
+# 1. Create .env file with ANTHROPIC_API_KEY
+# 2. Create credentials/gcp-service-account.json
+# 3. Run: docker compose up -d --build
+# 4. Access: http://localhost:3000
+#
+# For Cloudflare Tunnel:
+# - Point tunnel to http://suksham-frontend:3000
+# - Or use nginx reverse proxy (see docs)

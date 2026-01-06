@@ -4,6 +4,8 @@ Usage:
     python -m suksham_vachak.stats.cli ingest
     python -m suksham_vachak.stats.cli info
     python -m suksham_vachak.stats.cli matchup "V Kohli" "JM Anderson"
+    python -m suksham_vachak.stats.cli phase "V Kohli" powerplay --format T20
+    python -m suksham_vachak.stats.cli form "V Kohli"
     python -m suksham_vachak.stats.cli clear
 """
 
@@ -28,6 +30,7 @@ def ingest_all(config: StatsConfig) -> None:
 
     db = StatsDatabase(config.db_path)
     db.initialize()
+    db.migrate_to_v2()  # Ensure phase column exists
 
     aggregator = StatsAggregator(config.cricsheet_data_dir)
     total_matches = aggregator.count_matches()
@@ -140,6 +143,88 @@ def query_player(config: StatsConfig, player: str, as_batter: bool = True) -> No
         print(f"  vs {opponent}: {m.runs_scored}/{m.balls_faced} SR {m.strike_rate:.0f}, {avg_str}")
 
 
+def query_phase(
+    config: StatsConfig,
+    player: str,
+    phase: str,
+    match_format: str | None = None,
+    as_bowler: bool = False,
+) -> None:
+    """Query player performance in a specific phase."""
+    from .db import StatsDatabase
+    from .phases import PhaseEngine
+
+    db_path = Path(config.db_path)
+    if not db_path.exists():
+        print(f"Database not found: {config.db_path}")
+        return
+
+    db = StatsDatabase(config.db_path)
+    db.initialize()
+    db.migrate_to_v2()
+
+    engine = PhaseEngine(db)
+    role = "bowler" if as_bowler else "batter"
+    stats = engine.get_phase_performance(player, phase, match_format, role)
+
+    if stats is None:
+        fmt_str = f" ({match_format})" if match_format else ""
+        print(f"No {phase} data found for {player}{fmt_str}")
+        return
+
+    print(f"\n=== {stats.player_name} in {stats.phase} ({stats.match_format}) ===")
+    print(f"Matches: {stats.matches}")
+
+    if role == "batter":
+        print(f"Runs: {stats.runs} off {stats.balls} balls")
+        print(f"Strike Rate: {stats.strike_rate:.1f}")
+        if stats.wickets > 0:
+            print(f"Dismissed: {stats.wickets}x (avg {stats.average:.1f})")
+        else:
+            print("Dismissed: Never")
+        print(f"Boundaries: {stats.fours} fours, {stats.sixes} sixes")
+    else:
+        overs = stats.balls / 6
+        print(f"Overs: {overs:.1f}")
+        print(f"Runs conceded: {stats.runs}")
+        print(f"Economy: {stats.economy:.2f}")
+        print(f"Wickets: {stats.wickets}")
+
+
+def query_form(config: StatsConfig, player: str, as_bowler: bool = False) -> None:
+    """Query player's recent form."""
+    from .db import StatsDatabase
+    from .form import FormEngine
+
+    db_path = Path(config.db_path)
+    if not db_path.exists():
+        print(f"Database not found: {config.db_path}")
+        return
+
+    db = StatsDatabase(config.db_path)
+    db.initialize()
+    db.migrate_to_v2()
+
+    engine = FormEngine(db, window_size=5)
+    role = "bowler" if as_bowler else "batter"
+    form = engine.get_recent_form(player, role)
+
+    if form is None:
+        print(f"No recent form data found for {player}")
+        return
+
+    print(f"\n=== {form.player_name} Recent Form ({form.role}) ===")
+    print(f"Trend: {form.trend.upper()}")
+    print(f"Summary: {form.trend_description}")
+    print(f"\nLast {len(form.matches)} matches:")
+
+    for m in form.matches:
+        if role == "batter":
+            print(f"  {m.match_date}: {m.runs}/{m.balls} SR {m.strike_rate:.0f} @ {m.venue}")
+        else:
+            print(f"  {m.match_date}: {m.dismissals} wkts, {m.runs} runs @ {m.venue}")
+
+
 def clear_database(config: StatsConfig) -> None:
     """Clear all data from the database."""
     from .db import StatsDatabase
@@ -161,6 +246,8 @@ Examples:
   python -m suksham_vachak.stats.cli info
   python -m suksham_vachak.stats.cli matchup "V Kohli" "JM Anderson"
   python -m suksham_vachak.stats.cli player "V Kohli"
+  python -m suksham_vachak.stats.cli phase "V Kohli" powerplay --format T20
+  python -m suksham_vachak.stats.cli form "V Kohli"
   python -m suksham_vachak.stats.cli clear
         """,
     )
@@ -183,6 +270,22 @@ Examples:
     player_parser.add_argument("name", help="Player name")
     player_parser.add_argument("--bowler", action="store_true", help="Show as bowler (default: batter)")
 
+    # Phase command
+    phase_parser = subparsers.add_parser("phase", help="Query phase-based stats")
+    phase_parser.add_argument("player", help="Player name")
+    phase_parser.add_argument(
+        "phase",
+        choices=["powerplay", "middle", "death", "session1", "session2", "session3"],
+        help="Match phase",
+    )
+    phase_parser.add_argument("--format", dest="match_format", help="Match format (T20, ODI, Test)")
+    phase_parser.add_argument("--bowler", action="store_true", help="Query as bowler (default: batter)")
+
+    # Form command
+    form_parser = subparsers.add_parser("form", help="Query recent form (last 5 matches)")
+    form_parser.add_argument("player", help="Player name")
+    form_parser.add_argument("--bowler", action="store_true", help="Query as bowler (default: batter)")
+
     # Clear command
     subparsers.add_parser("clear", help="Clear all data from database")
 
@@ -202,6 +305,10 @@ Examples:
         query_matchup(config, args.batter, args.bowler)
     elif args.command == "player":
         query_player(config, args.name, as_batter=not args.bowler)
+    elif args.command == "phase":
+        query_phase(config, args.player, args.phase, args.match_format, args.bowler)
+    elif args.command == "form":
+        query_form(config, args.player, args.bowler)
     elif args.command == "clear":
         clear_database(config)
 

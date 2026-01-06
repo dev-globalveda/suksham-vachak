@@ -19,7 +19,7 @@ from .pressure import PressureCalculator
 if TYPE_CHECKING:
     from suksham_vachak.parser import CricketEvent, MatchInfo
     from suksham_vachak.rag import DejaVuRetriever
-    from suksham_vachak.stats import MatchupEngine
+    from suksham_vachak.stats import FormEngine, MatchupEngine, PhaseEngine
 
 
 class ContextBuilder:
@@ -37,6 +37,8 @@ class ContextBuilder:
         match_info: MatchInfo,
         rag_retriever: DejaVuRetriever | None = None,
         stats_engine: MatchupEngine | None = None,
+        phase_engine: PhaseEngine | None = None,
+        form_engine: FormEngine | None = None,
     ) -> None:
         """Initialize context builder.
 
@@ -44,12 +46,16 @@ class ContextBuilder:
             match_info: Match metadata from parser
             rag_retriever: Optional RAG retriever for historical parallels
             stats_engine: Optional stats engine for player matchup data
+            phase_engine: Optional phase stats engine for phase-based performance
+            form_engine: Optional form engine for recent form analysis
         """
         self.match_info = match_info
         self.pressure_calc = PressureCalculator()
         self.narrative_tracker = NarrativeTracker()
         self.rag_retriever = rag_retriever
         self.stats_engine = stats_engine
+        self.phase_engine = phase_engine
+        self.form_engine = form_engine
 
         # Match state tracking
         self._innings_number = 1
@@ -87,7 +93,7 @@ class ContextBuilder:
         # Phrases to avoid (recently used)
         self._recent_phrases: list[str] = []
 
-    def build(self, event: CricketEvent) -> RichContext:
+    def build(self, event: CricketEvent) -> RichContext:  # noqa: C901
         """Build rich context for an event.
 
         Args:
@@ -132,6 +138,40 @@ class ContextBuilder:
                     narrative_state.matchup_context = matchup.to_short_context()
             except Exception:  # noqa: S110
                 # Stats failures shouldn't break commentary generation
+                pass
+
+        # Enhance with phase-based statistics (Phase Engine)
+        if self.phase_engine is not None:
+            try:
+                # Map MatchPhase to stats phase string
+                phase_mapping = {
+                    MatchPhase.POWERPLAY: "powerplay",
+                    MatchPhase.MIDDLE_OVERS: "middle",
+                    MatchPhase.DEATH_OVERS: "death",
+                    MatchPhase.FIRST_SESSION: "session1",
+                    MatchPhase.SECOND_SESSION: "session2",
+                    MatchPhase.THIRD_SESSION: "session3",
+                }
+                phase_str = phase_mapping.get(match_situation.phase)
+                if phase_str:
+                    batter_phase = self.phase_engine.get_phase_performance(
+                        event.batter,
+                        phase_str,
+                        self.match_info.format.value,
+                        "batter",
+                    )
+                    if batter_phase and batter_phase.balls >= 30:
+                        narrative_state.phase_context = batter_phase.to_context("batter")
+            except Exception:  # noqa: S110
+                pass
+
+        # Enhance with recent form (Form Engine)
+        if self.form_engine is not None:
+            try:
+                batter_form = self.form_engine.get_recent_form(event.batter, "batter")
+                if batter_form and batter_form.trend != "stable":
+                    narrative_state.form_context = batter_form.trend_description
+            except Exception:  # noqa: S110
                 pass
 
         # Enhance with RAG historical parallels (Déjà Vu Engine)

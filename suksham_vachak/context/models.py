@@ -205,6 +205,8 @@ class NarrativeState:
     dramatic_potential: str | None = None  # What could happen next
     callbacks_available: list[str] = field(default_factory=list)  # Earlier moments to reference
     matchup_context: str | None = None  # Player vs bowler historical stats
+    phase_context: str | None = None  # Phase-specific performance stats
+    form_context: str | None = None  # Recent form/trend info
 
     def to_prompt_context(self) -> str:
         """Convert to text for LLM prompt."""
@@ -215,6 +217,14 @@ class NarrativeState:
         # Include matchup stats if available
         if self.matchup_context:
             lines.append(f"Matchup: {self.matchup_context}")
+
+        # Include phase stats if available
+        if self.phase_context:
+            lines.append(f"Phase: {self.phase_context}")
+
+        # Include form if available
+        if self.form_context:
+            lines.append(f"Form: {self.form_context}")
 
         lines.append(f"Momentum: {self.momentum.value}")
         lines.append(

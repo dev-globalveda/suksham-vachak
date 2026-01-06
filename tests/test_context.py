@@ -338,7 +338,7 @@ class TestPressureCalculator:
             overs_completed=10.0,
             phase=MatchPhase.MIDDLE_OVERS,
         )
-        level, score = calculator.calculate(match, wickets_in_last_5_overs=3)
+        _level, score = calculator.calculate(match, wickets_in_last_5_overs=3)
         assert score > 0.4
 
     def test_pressure_description(self, calculator: PressureCalculator) -> None:

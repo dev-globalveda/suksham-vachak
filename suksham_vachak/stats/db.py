@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS matchups (
     sixes INTEGER DEFAULT 0,
     dismissals INTEGER DEFAULT 0,
     dismissal_type TEXT,
+    phase TEXT,
 
     FOREIGN KEY (batter_id) REFERENCES players(id),
     FOREIGN KEY (bowler_id) REFERENCES players(id)
@@ -45,6 +46,14 @@ CREATE INDEX IF NOT EXISTS idx_matchups_batter ON matchups(batter_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_bowler ON matchups(bowler_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_pair ON matchups(batter_id, bowler_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_match ON matchups(match_id);
+"""
+
+# Schema v2: Add phase column and date indexes for phase/form queries
+SCHEMA_V2_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_matchups_phase ON matchups(batter_id, phase, match_format);
+CREATE INDEX IF NOT EXISTS idx_matchups_bowler_phase ON matchups(bowler_id, phase, match_format);
+CREATE INDEX IF NOT EXISTS idx_matchups_batter_date ON matchups(batter_id, match_date DESC);
+CREATE INDEX IF NOT EXISTS idx_matchups_bowler_date ON matchups(bowler_id, match_date DESC);
 """
 
 
@@ -96,6 +105,23 @@ class StatsDatabase:
 
         self._initialized = True
 
+    def migrate_to_v2(self) -> None:
+        """Migrate schema to v2: add phase column and indexes.
+
+        Safe to call multiple times - uses IF NOT EXISTS.
+        """
+        with self._connection() as conn:
+            # Check if phase column exists
+            cursor = conn.execute("PRAGMA table_info(matchups)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            if "phase" not in columns:
+                conn.execute("ALTER TABLE matchups ADD COLUMN phase TEXT")
+
+            # Create v2 indexes (safe - uses IF NOT EXISTS)
+            conn.executescript(SCHEMA_V2_INDEXES)
+            conn.commit()
+
     def upsert_player(
         self,
         player_id: str,
@@ -136,8 +162,9 @@ class StatsDatabase:
                 """
                 INSERT INTO matchups (
                     batter_id, bowler_id, match_id, match_date, match_format, venue,
-                    balls_faced, runs_scored, dots, fours, sixes, dismissals, dismissal_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    balls_faced, runs_scored, dots, fours, sixes, dismissals, dismissal_type,
+                    phase
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.batter_id,
@@ -153,6 +180,7 @@ class StatsDatabase:
                     record.sixes,
                     record.dismissals,
                     record.dismissal_type,
+                    record.phase,
                 ),
             )
             conn.commit()
@@ -180,8 +208,9 @@ class StatsDatabase:
                 """
                 INSERT INTO matchups (
                     batter_id, bowler_id, match_id, match_date, match_format, venue,
-                    balls_faced, runs_scored, dots, fours, sixes, dismissals, dismissal_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    balls_faced, runs_scored, dots, fours, sixes, dismissals, dismissal_type,
+                    phase
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -198,6 +227,7 @@ class StatsDatabase:
                         r.sixes,
                         r.dismissals,
                         r.dismissal_type,
+                        r.phase,
                     )
                     for r in records
                 ],

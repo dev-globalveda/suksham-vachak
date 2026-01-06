@@ -16,14 +16,19 @@ from .normalize import normalize_display_name, normalize_player_id
 class MatchupAccumulator:
     """Accumulate per-ball stats into matchup records for a single match."""
 
+    # Phase definitions by format
+    # T20: powerplay (1-6), middle (7-15), death (16-20)
+    # ODI: powerplay (1-10), middle (11-40), death (41-50)
+    # Test: session heuristic (overs 1-30, 31-60, 61-90 per day)
+
     def __init__(self, match_id: str, match_date: str, match_format: str, venue: str) -> None:
         self.match_id = match_id
         self.match_date = match_date
         self.match_format = match_format
         self.venue = venue
 
-        # Key: (batter_id, bowler_id) -> accumulated stats
-        self._data: dict[tuple[str, str], dict] = defaultdict(
+        # Key: (batter_id, bowler_id, phase) -> accumulated stats
+        self._data: dict[tuple[str, str, str | None], dict] = defaultdict(
             lambda: {
                 "batter_name": "",
                 "bowler_name": "",
@@ -37,11 +42,52 @@ class MatchupAccumulator:
             }
         )
 
+    def _determine_phase(self, over_number: int) -> str | None:
+        """Determine match phase from over number and format.
+
+        Args:
+            over_number: The over number (0-indexed from Cricsheet, but we add 1 for display).
+
+        Returns:
+            Phase string or None if format not recognized.
+        """
+        # Convert 0-indexed over to 1-indexed for phase calculation
+        over = over_number + 1
+
+        if self.match_format == "T20":
+            if over <= 6:
+                return "powerplay"
+            elif over <= 15:
+                return "middle"
+            else:
+                return "death"
+        elif self.match_format == "ODI":
+            if over <= 10:
+                return "powerplay"
+            elif over <= 40:
+                return "middle"
+            else:
+                return "death"
+        elif self.match_format == "Test":
+            # Heuristic: assume ~90 overs per day, divided into 3 sessions
+            # This is approximate since we don't have actual session boundaries
+            day_over = ((over - 1) % 90) + 1
+            if day_over <= 30:
+                return "session1"
+            elif day_over <= 60:
+                return "session2"
+            else:
+                return "session3"
+        else:
+            # Unknown format (domestic, other)
+            return None
+
     def add_delivery(self, event: CricketEvent) -> None:
         """Add a delivery to the accumulator."""
         batter_id = normalize_player_id(event.batter)
         bowler_id = normalize_player_id(event.bowler)
-        key = (batter_id, bowler_id)
+        phase = self._determine_phase(event.over_number)
+        key = (batter_id, bowler_id, phase)
 
         stats = self._data[key]
         stats["batter_name"] = normalize_display_name(event.batter)
@@ -75,7 +121,7 @@ class MatchupAccumulator:
     def get_records(self) -> list[MatchupRecord]:
         """Generate matchup records from accumulated data."""
         records = []
-        for (batter_id, bowler_id), stats in self._data.items():
+        for (batter_id, bowler_id, phase), stats in self._data.items():
             if stats["balls_faced"] > 0:  # Only include if faced at least one ball
                 records.append(
                     MatchupRecord(
@@ -94,6 +140,7 @@ class MatchupAccumulator:
                         sixes=stats["sixes"],
                         dismissals=stats["dismissals"],
                         dismissal_type=stats["dismissal_type"],
+                        phase=phase,
                     )
                 )
         return records

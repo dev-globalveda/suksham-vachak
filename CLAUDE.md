@@ -93,3 +93,24 @@ Data exploration notebook: `notebooks/cricket_data_exploration.ipynb`
 - Virtual environment stored in `.venv/` (poetry.toml config)
 - CI tests against Python 3.8-3.12
 - Coverage reports uploaded to Codecov
+
+## Git Commit Workflow
+
+**IMPORTANT**: Always run pre-commit hooks BEFORE attempting to commit to avoid failures:
+
+```bash
+# Format and lint all staged files BEFORE committing
+poetry run pre-commit run --all-files
+
+# Then commit (hooks will pass since files are already formatted)
+git add . && git commit -m "your message"
+```
+
+The pre-commit hooks include:
+
+- **prettier**: Formats markdown, JSON, YAML files
+- **ruff**: Lints and formats Python code
+- **end-of-file-fixer**: Ensures files end with newline
+- **trailing-whitespace**: Removes trailing spaces
+
+If you skip this step, prettier will modify files during commit, causing the commit to fail. You'd then need to add the modified files and commit again.

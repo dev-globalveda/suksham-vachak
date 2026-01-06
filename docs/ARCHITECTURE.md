@@ -699,6 +699,149 @@ class AdaptiveTransport:
 
 **Recommendation**: Use WebTransport as primary, WebSocket as fallback.
 
+### WebTransport Prerequisites & Infrastructure
+
+#### Client-Side Requirements
+
+**No special drivers needed** - WebTransport is built into modern browsers:
+
+| Requirement | Details                               |
+| ----------- | ------------------------------------- |
+| Browser     | Chrome 97+, Edge 97+, Firefox 114+    |
+| Drivers     | None - native browser implementation  |
+| Permissions | None - works like WebSocket           |
+| UDP         | Must not be blocked by local firewall |
+
+#### Server-Side Requirements
+
+| Requirement       | Details                                      |
+| ----------------- | -------------------------------------------- |
+| HTTP/3 Server     | aioquic (Python), quic-go (Go), quinn (Rust) |
+| TLS 1.3           | Mandatory - QUIC requires TLS 1.3            |
+| Valid Certificate | Self-signed won't work in browsers           |
+| UDP Port          | Typically 443, must be open                  |
+
+#### OSI Layer Considerations
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  OSI Layer Stack - WebTransport vs WebSocket                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Layer 7 (Application):  WebTransport API / WebSocket API        │
+│  Layer 6 (Presentation): -                                       │
+│  Layer 5 (Session):      QUIC streams    / -                     │
+│  Layer 4 (Transport):    UDP             / TCP  ← Key difference │
+│  Layer 3 (Network):      IP                                      │
+│  Layer 2 (Data Link):    Ethernet/WiFi                           │
+│  Layer 1 (Physical):     Standard                                │
+│                                                                  │
+│  QUIC replaces TCP+TLS at Layer 4-5                              │
+│  No kernel drivers needed - UDP is standard in every OS          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Infrastructure Blockers
+
+| Component               | Issue                   | Solution                              |
+| ----------------------- | ----------------------- | ------------------------------------- |
+| **Load Balancers**      | Many only support TCP   | AWS NLB, GCP UDP LB, or Cloudflare    |
+| **Corporate Firewalls** | Often block UDP 443     | Fallback to WebSocket                 |
+| **Some ISPs**           | UDP throttling/blocking | Fallback to WebSocket                 |
+| **Older CDNs**          | No HTTP/3 support       | Cloudflare, Fastly, Akamai support it |
+| **NAT Timeout**         | UDP NAT ~30s timeout    | QUIC has built-in keep-alive          |
+
+#### Deployment Reality Check
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Real-World Gotchas                                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Corporate Networks (offices, universities):                  │
+│     └── Often block UDP entirely                                 │
+│     └── MUST have WebSocket fallback                             │
+│                                                                  │
+│  2. Cloud Load Balancers:                                        │
+│     ├── AWS ALB: TCP only ❌                                     │
+│     ├── AWS NLB: UDP supported ✅                                │
+│     ├── GCP: UDP supported ✅                                    │
+│     └── Cloudflare: Full HTTP/3 ✅                               │
+│                                                                  │
+│  3. Development/Localhost:                                       │
+│     ├── Browsers reject self-signed certs for WebTransport       │
+│     ├── Fix: chrome://flags → allow-insecure-localhost           │
+│     └── Or use tunnel (ngrok, Cloudflare Tunnel)                 │
+│                                                                  │
+│  4. Certificate Requirements:                                    │
+│     ├── Must be valid CA-signed (Let's Encrypt works)            │
+│     └── Must include correct SAN for domain                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Recommended Production Architecture
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Browser    │────▶│   Cloudflare     │────▶│  Origin Server   │
+│              │     │   (Edge)         │     │                  │
+│ WebTransport │     │                  │     │  FastAPI/uvicorn │
+│   (QUIC)     │     │  ┌────────────┐  │     │  (HTTP/2 or 1.1) │
+│      or      │     │  │ QUIC       │  │     │                  │
+│  WebSocket   │     │  │ Termination│  │     │  No QUIC needed! │
+│   (TCP)      │     │  └────────────┘  │     │                  │
+└──────────────┘     └──────────────────┘     └──────────────────┘
+       │                     │                        │
+       │                     │                        │
+       └── Client handles    └── Edge handles         └── Origin stays
+           protocol choice       QUIC complexity          simple (TCP)
+```
+
+**Why Edge Termination?**
+
+1. Cloudflare/Fastly handle QUIC at the edge
+2. Origin server can remain simple HTTP/2
+3. No need to manage QUIC certificates/config on origin
+4. Automatic fallback handling
+5. Global edge = lower latency for QUIC handshake
+
+#### Server Implementation (if self-hosting QUIC)
+
+```python
+# Python with aioquic
+from aioquic.asyncio import serve
+from aioquic.quic.configuration import QuicConfiguration
+
+config = QuicConfiguration(
+    is_client=False,
+    certificate_chain="cert.pem",  # Must be CA-signed
+    private_key="key.pem",
+)
+
+async def handler(reader, writer):
+    # Handle WebTransport streams
+    pass
+
+await serve("0.0.0.0", 443, configuration=config, handler=handler)
+```
+
+```bash
+# Or use Hypercorn with HTTP/3 support
+hypercorn --quic-bind 0.0.0.0:443 --certfile cert.pem --keyfile key.pem app:app
+```
+
+#### Summary: What You Actually Need
+
+| Environment     | What to Do                                             |
+| --------------- | ------------------------------------------------------ |
+| **Production**  | Use Cloudflare/Fastly edge (handles QUIC for you)      |
+| **Self-hosted** | AWS NLB + aioquic/hypercorn + valid TLS cert           |
+| **Development** | Cloudflare Tunnel or `--allow-insecure-localhost` flag |
+| **Fallback**    | Always implement WebSocket for UDP-blocked networks    |
+
+**Bottom line:** No special drivers needed anywhere. The challenge is ensuring UDP flows end-to-end. Use edge termination (Cloudflare) to avoid complexity.
+
 ---
 
 ## Data Flow
@@ -912,6 +1055,7 @@ Every implementation must pass the Benaud Test:
 | 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table                                |
 | 3.0     | 2026-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
 | 3.1     | 2026-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
+| 3.2     | 2026-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
 
 ---
 

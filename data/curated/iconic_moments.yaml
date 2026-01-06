@@ -1,0 +1,257 @@
+# Curated Iconic Cricket Moments
+# These are hand-selected moments for high-quality RAG retrieval
+# Higher priority (2.0+) means more likely to be retrieved
+
+moments:
+  # World Cup Finals
+  - id: dhoni_wc2011_six
+    player: MS Dhoni
+    opponent: Nuwan Kulasekara
+    type: clutch
+    priority: 2.8
+    format: ODI
+    date: "2011-04-02"
+    venue: "Wankhede Stadium, Mumbai"
+    team1: "India"
+    team2: "Sri Lanka"
+    innings: 2
+    ball_number: "48.4"
+    score: 277
+    wickets: 4
+    phase: death
+    pressure: critical
+    momentum: batting_dominant
+    target: 275
+    runs_required: 4
+    description: "Dhoni finishes the 2011 World Cup final with a six over long-on"
+    significance: "The most iconic winning moment in Indian cricket history"
+    embedding_text: "MS Dhoni World Cup final winning six 2011 India champion critical pressure finish clutch death overs"
+    tags: ["world_cup", "final", "winning_moment", "dhoni", "six"]
+
+  - id: kapil_175
+    player: Kapil Dev
+    opponent: Zimbabwe
+    type: milestone
+    priority: 2.5
+    format: ODI
+    date: "1983-06-18"
+    venue: "Tunbridge Wells"
+    team1: "India"
+    team2: "Zimbabwe"
+    innings: 1
+    score: 175
+    wickets: 0
+    phase: late
+    pressure: critical
+    description: "Kapil Dev's unbeaten 175 saves India from 17/5 in 1983 World Cup"
+    significance: "Perhaps the greatest rescue innings in World Cup history"
+    embedding_text: "Kapil Dev 175 World Cup 1983 17/5 collapse recovery batting masterclass critical pressure"
+    tags: ["world_cup", "recovery", "collapse", "kapil"]
+
+  # Desert Storm
+  - id: sachin_desert_storm
+    player: Sachin Tendulkar
+    opponent: Shane Warne
+    type: iconic
+    priority: 2.5
+    format: ODI
+    date: "1998-04-22"
+    venue: "Sharjah Cricket Stadium"
+    team1: "India"
+    team2: "Australia"
+    innings: 2
+    score: 143
+    wickets: 0
+    phase: middle
+    pressure: critical
+    target: 276
+    description: "Tendulkar's 'Desert Storm' innings - 143 off 131 balls against Australia"
+    significance: "One of the greatest ODI innings, played in a sandstorm"
+    embedding_text: "Sachin Tendulkar Desert Storm Sharjah 143 against Australia Warne critical pressure chase masterclass ODI"
+    tags: ["masterclass", "chase", "sachin", "warne"]
+
+  # Test Match Heroics
+  - id: stokes_headingley
+    player: Ben Stokes
+    opponent: Pat Cummins
+    type: clutch
+    priority: 2.7
+    format: Test
+    date: "2019-08-25"
+    venue: "Headingley, Leeds"
+    team1: "England"
+    team2: "Australia"
+    innings: 4
+    score: 135
+    wickets: 9
+    phase: late
+    pressure: critical
+    description: "Ben Stokes' unbeaten 135* at Headingley - England win from 286/9"
+    significance: "One of the greatest Test innings, impossible chase achieved"
+    embedding_text: "Ben Stokes 135 not out Headingley Ashes impossible chase last wicket partnership critical pressure Test"
+    tags: ["ashes", "impossible", "chase", "stokes", "test"]
+
+  - id: laxman_eden
+    player: VVS Laxman
+    opponent: Australia
+    type: milestone
+    priority: 2.6
+    format: Test
+    date: "2001-03-14"
+    venue: "Eden Gardens, Kolkata"
+    team1: "India"
+    team2: "Australia"
+    innings: 3
+    score: 281
+    wickets: 0
+    phase: late
+    pressure: critical
+    description: "VVS Laxman's 281 at Eden Gardens - India beat Australia after following on"
+    significance: "The greatest comeback in Test cricket history"
+    embedding_text: "VVS Laxman 281 Eden Gardens follow-on India Australia comeback Test cricket history"
+    tags: ["follow_on", "comeback", "laxman", "test", "eden_gardens"]
+
+  # T20 Classics
+  - id: yuvraj_six_sixes
+    player: Yuvraj Singh
+    opponent: Stuart Broad
+    type: boundary_six
+    priority: 2.5
+    format: T20
+    date: "2007-09-19"
+    venue: "Kingsmead, Durban"
+    team1: "India"
+    team2: "England"
+    innings: 1
+    ball_number: "19.6"
+    phase: death
+    pressure: medium
+    momentum: batting_dominant
+    description: "Yuvraj Singh hits six sixes in an over off Stuart Broad"
+    significance: "First and only six sixes in T20 World Cup history"
+    embedding_text: "Yuvraj Singh six sixes Stuart Broad T20 World Cup death overs boundaries batting dominant"
+    tags: ["six_sixes", "t20_wc", "yuvraj", "boundaries"]
+
+  - id: kohli_t20wc_2022
+    player: Virat Kohli
+    opponent: Haris Rauf
+    type: clutch
+    priority: 2.6
+    format: T20
+    date: "2022-10-23"
+    venue: "MCG, Melbourne"
+    team1: "India"
+    team2: "Pakistan"
+    innings: 2
+    score: 82
+    wickets: 4
+    phase: death
+    pressure: critical
+    momentum: momentum_shift
+    target: 160
+    runs_required: 28
+    description: "Kohli's 82* vs Pakistan - back-to-back sixes off Rauf at MCG"
+    significance: "Greatest T20 innings under pressure, India-Pakistan classic"
+    embedding_text: "Virat Kohli 82 MCG India Pakistan T20 World Cup critical pressure chase death overs six Rauf"
+    tags: ["india_pakistan", "t20_wc", "kohli", "chase", "clutch"]
+
+  # Bowling Masterclasses
+  - id: kumble_10_wickets
+    player: Anil Kumble
+    opponent: Pakistan
+    type: iconic
+    priority: 2.4
+    format: Test
+    date: "1999-02-07"
+    venue: "Feroz Shah Kotla, Delhi"
+    team1: "India"
+    team2: "Pakistan"
+    innings: 4
+    wickets: 10
+    phase: late
+    pressure: high
+    description: "Anil Kumble takes all 10 wickets in a Test innings against Pakistan"
+    significance: "Only the second bowler in Test history to take 10 wickets in an innings"
+    embedding_text: "Anil Kumble 10 wickets innings Pakistan Test Delhi spin bowling masterclass"
+    tags: ["10_wickets", "kumble", "test", "bowling"]
+
+  - id: warne_gatting_ball
+    player: Shane Warne
+    opponent: Mike Gatting
+    type: wicket
+    priority: 2.3
+    format: Test
+    date: "1993-06-04"
+    venue: "Old Trafford, Manchester"
+    team1: "Australia"
+    team2: "England"
+    innings: 1
+    ball_number: "1.1"
+    phase: early
+    pressure: medium
+    description: "Shane Warne's 'Ball of the Century' to dismiss Mike Gatting"
+    significance: "The delivery that announced leg-spin to the world"
+    embedding_text: "Shane Warne Ball of the Century Mike Gatting leg spin Ashes first ball Old Trafford"
+    tags: ["ball_of_century", "warne", "ashes", "spin", "wicket"]
+
+  # Modern Era
+  - id: bumrah_lords_spell
+    player: Jasprit Bumrah
+    opponent: England
+    type: iconic
+    priority: 2.2
+    format: Test
+    date: "2022-07-02"
+    venue: "Lord's, London"
+    team1: "India"
+    team2: "England"
+    innings: 2
+    wickets: 6
+    phase: middle
+    pressure: high
+    description: "Bumrah's devastating spell at Lord's - 35 runs in one over as captain"
+    significance: "Record runs in a Test over while captaining India"
+    embedding_text: "Jasprit Bumrah Lord's captain India fast bowling spell Anderson Stuart Broad"
+    tags: ["bumrah", "lords", "captain", "fast_bowling"]
+
+  # IPL Moments
+  - id: dhoni_csk_2019
+    player: MS Dhoni
+    opponent: RCB
+    type: clutch
+    priority: 2.0
+    format: T20
+    date: "2019-04-21"
+    venue: "M. Chinnaswamy Stadium, Bangalore"
+    team1: "CSK"
+    team2: "RCB"
+    innings: 2
+    phase: death
+    pressure: critical
+    target: 162
+    runs_required: 26
+    description: "Dhoni's last-over finish vs RCB - CSK win with 2 balls to spare"
+    significance: "Classic Dhoni finish in high-pressure IPL chase"
+    embedding_text: "MS Dhoni CSK RCB IPL death overs finish chase critical pressure T20"
+    tags: ["ipl", "dhoni", "csk", "chase", "finish"]
+
+  # Recent Classics
+  - id: gill_wc2023_final
+    player: Shubman Gill
+    opponent: Australia
+    type: milestone
+    priority: 2.1
+    format: ODI
+    date: "2023-11-19"
+    venue: "Narendra Modi Stadium, Ahmedabad"
+    team1: "India"
+    team2: "Australia"
+    innings: 1
+    score: 191
+    wickets: 0
+    phase: middle
+    pressure: high
+    description: "India score 240 in World Cup final but Australia chase it down"
+    significance: "World Cup final heartbreak for India at home"
+    embedding_text: "World Cup 2023 final India Australia Ahmedabad home crowd pressure"
+    tags: ["world_cup", "final", "india", "australia", "2023"]

@@ -107,6 +107,11 @@ def clear_store(config: RAGConfig) -> None:
 
 def main() -> None:
     """CLI entry point."""
+    # Load environment variables from .env file
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     parser = argparse.ArgumentParser(
         description="RAG Déjà Vu Engine CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,

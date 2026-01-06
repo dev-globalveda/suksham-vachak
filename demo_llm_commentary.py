@@ -33,7 +33,7 @@ from suksham_vachak.personas import BENAUD, DOSHI, GREIG
 
 # Optional RAG imports (only available if installed with: poetry install --extras rag)
 try:
-    from suksham_vachak.rag import DejaVuRetriever, MomentVectorStore, RAGConfig, VoyageEmbeddingClient
+    from suksham_vachak.rag import RAGConfig, create_retriever
 
     RAG_AVAILABLE = True
 except ImportError:
@@ -135,20 +135,8 @@ def run_demo(  # noqa: C901
             sys.exit(1)
         print("\n🧠 Initializing RAG Déjà Vu Engine...")
         try:
-            import os
-
-            api_key = os.getenv("VOYAGE_API_KEY")
-            if not api_key:
-                print("❌ VOYAGE_API_KEY not set in environment")
-                sys.exit(1)
-
-            config = RAGConfig()
-            embedding_client = VoyageEmbeddingClient(api_key=api_key, model=config.voyage_model)
-            store = MomentVectorStore(
-                embedding_client=embedding_client,
-                persist_directory=str(config.vector_db_path),
-            )
-            rag_retriever = DejaVuRetriever(store=store, embedding_client=embedding_client)
+            config = RAGConfig.default()
+            rag_retriever = create_retriever(config)
             print("   ✅ RAG retriever initialized")
             print(f"   📚 Vector store: {config.vector_db_path}")
         except Exception as e:

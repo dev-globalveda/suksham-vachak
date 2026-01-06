@@ -1,8 +1,8 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 3.0
+> **Document Version**: 4.0
 > **Last Updated**: January 6, 2026
-> **Status**: Phases 1, 2 & 3 Complete
+> **Status**: Phases 1, 2, 3 & 4 Complete
 
 ---
 
@@ -1239,7 +1239,7 @@ suksham-vachak/
 │   │   ├── base.py             # TTSProvider base
 │   │   ├── google.py           # Google Cloud TTS
 │   │   └── prosody.py          # SSML prosody control
-│   ├── rag/                    # NEW: RAG Déjà Vu Engine
+│   ├── rag/                    # RAG Déjà Vu Engine
 │   │   ├── __init__.py
 │   │   ├── models.py           # CricketMoment, RetrievedMoment
 │   │   ├── embeddings.py       # VoyageEmbeddingClient
@@ -1250,6 +1250,15 @@ suksham-vachak/
 │   │   └── ingestion/
 │   │       ├── cricsheet.py    # Parse matches → moments
 │   │       └── curated.py      # Load iconic_moments.yaml
+│   ├── stats/                  # Stats Engine (Player Matchups)
+│   │   ├── __init__.py
+│   │   ├── models.py           # PlayerMatchupStats, MatchupRecord
+│   │   ├── db.py               # SQLite database layer
+│   │   ├── aggregator.py       # Parse Cricsheet → matchup records
+│   │   ├── matchups.py         # MatchupEngine queries
+│   │   ├── normalize.py        # Player name normalization
+│   │   ├── config.py           # StatsConfig
+│   │   └── cli.py              # Stats CLI
 │   └── api/
 │       ├── __init__.py
 │       ├── app.py              # FastAPI app
@@ -1308,12 +1317,16 @@ suksham-vachak/
 - [x] Integration with ContextBuilder via callbacks
 - [x] CLI for ingestion/stats/management
 
-### 📋 Phase 4: Stats Engine
+### ✅ Phase 4: Stats Engine (Complete)
 
-- [ ] Player tendency analysis
-- [ ] Matchup statistics
-- [ ] Venue/conditions analysis
-- [ ] Historical averages
+- [x] SQLite database for player matchup statistics
+- [x] Player vs Bowler head-to-head aggregation
+- [x] Cricsheet ingestion pipeline for stats
+- [x] MatchupEngine query interface
+- [x] Integration with ContextBuilder (matchup_context)
+- [x] CLI for ingestion/queries
+- [ ] Venue/conditions analysis (future)
+- [ ] Player tendency analysis (future)
 
 ### 📋 Phase 5: Forecasting
 
@@ -1349,6 +1362,7 @@ Every implementation must pass the Benaud Test:
 | 3.1     | 2026-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
 | 3.2     | 2026-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
 | 3.3     | 2026-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
+| 4.0     | 2026-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
 
 ---
 

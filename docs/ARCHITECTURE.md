@@ -554,6 +554,153 @@ async def archive_moment(moment_id: str, user_id: str):
 
 ---
 
+## Transport Protocol: WebTransport vs WebSocket
+
+### The Head-of-Line Blocking Problem
+
+WebSockets run over TCP, which guarantees ordered delivery. This creates **head-of-line (HOL) blocking**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WebSocket (TCP) - Head-of-Line Blocking                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Time ──────────────────────────────────────────────────▶       │
+│                                                                  │
+│  Packet 1: [Audio Chunk 1] ──▶ ✓ Delivered                      │
+│  Packet 2: [Audio Chunk 2] ──▶ ✗ Lost! (retransmit...)          │
+│  Packet 3: [Audio Chunk 3] ──▶ ⏳ Blocked (waiting for #2)       │
+│  Packet 4: [Text Update]   ──▶ ⏳ Blocked (waiting for #2)       │
+│  Packet 5: [Audio Chunk 4] ──▶ ⏳ Blocked (waiting for #2)       │
+│                                    │                             │
+│                                    └── 200-500ms delay           │
+│                                                                  │
+│  Impact: Audio stutters, text lags, commentary feels "off"       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+For live cricket commentary, even 200ms delays are noticeable - the ball has already been hit but audio is still buffering.
+
+### WebTransport: The Better Choice
+
+WebTransport runs over **HTTP/3 (QUIC)**, which uses UDP with per-stream flow control:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WebTransport (QUIC) - Independent Streams                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Stream 1 (Reliable - Text):                                     │
+│    [Commentary Text] ──▶ ✓ ──▶ ✓ ──▶ ✓  (always delivered)      │
+│                                                                  │
+│  Stream 2 (Reliable - Audio):                                    │
+│    [Audio Chunk 1] ──▶ ✓                                        │
+│    [Audio Chunk 2] ──▶ ✗ Lost → Retransmit                      │
+│    [Audio Chunk 3] ──▶ ✓ ← NOT blocked by chunk 2!              │
+│                                                                  │
+│  Datagrams (Unreliable - State):                                 │
+│    [Score: 156/4] ──▶ Fire-and-forget (latest wins)             │
+│                                                                  │
+│  Impact: Lost audio = brief skip, everything else flows          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Recommended Multi-Stream Design
+
+```python
+class CommentaryTransport:
+    """WebTransport-based streaming for live commentary."""
+
+    async def stream_commentary(self, session: WebTransportSession):
+        # Stream 1: Reliable text (never miss commentary text)
+        text_stream = await session.create_unidirectional_stream()
+
+        # Stream 2: Reliable audio (retransmit if needed, but independent)
+        audio_stream = await session.create_unidirectional_stream()
+
+        # Datagrams: Unreliable state updates (latest score wins)
+        # Lost datagram? Next one has current state anyway
+
+        async for event in match_events():
+            # Text always reliable
+            await text_stream.send(json.dumps({
+                "ball": event.ball_number,
+                "text": commentary.text
+            }))
+
+            # Audio on separate stream - HOL blocking only affects audio
+            audio_bytes = await tts.synthesize(commentary.text)
+            await audio_stream.send(audio_bytes)
+
+            # Score/state as datagram - fire and forget
+            session.send_datagram(json.dumps({
+                "score": f"{event.runs}/{event.wickets}",
+                "overs": event.overs
+            }))
+```
+
+### Stream Allocation Strategy
+
+| Data Type       | Transport       | Reliability | Rationale                               |
+| --------------- | --------------- | ----------- | --------------------------------------- |
+| Commentary Text | Reliable Stream | Guaranteed  | User must see what was said             |
+| Audio Chunks    | Reliable Stream | Guaranteed  | Want complete audio, separate from text |
+| Match Score     | Datagram        | Unreliable  | Latest state always overwrites, loss OK |
+| Ball-by-ball    | Datagram        | Unreliable  | High frequency, latest wins             |
+| Highlights Flag | Reliable Stream | Guaranteed  | Don't miss "save this moment"           |
+
+### Graceful Degradation
+
+```python
+class AdaptiveTransport:
+    """Falls back to WebSocket for older browsers."""
+
+    async def connect(self, url: str):
+        # Try WebTransport first (modern browsers)
+        if self.supports_webtransport():
+            return await self._connect_webtransport(url)
+
+        # Fallback to WebSocket (Safari, older browsers)
+        return await self._connect_websocket(url)
+
+    def supports_webtransport(self) -> bool:
+        # Chrome 97+, Edge 97+, Firefox (behind flag)
+        # Safari: Not yet supported (as of 2026)
+        return hasattr(self, 'WebTransport')
+```
+
+### Browser Support (as of 2026)
+
+| Browser       | WebTransport | WebSocket | Recommendation        |
+| ------------- | ------------ | --------- | --------------------- |
+| Chrome 97+    | ✅           | ✅        | Use WebTransport      |
+| Edge 97+      | ✅           | ✅        | Use WebTransport      |
+| Firefox 114+  | ✅           | ✅        | Use WebTransport      |
+| Safari        | ❌           | ✅        | Fallback to WebSocket |
+| Mobile Chrome | ✅           | ✅        | Use WebTransport      |
+| Mobile Safari | ❌           | ✅        | Fallback to WebSocket |
+
+### Performance Comparison
+
+| Metric             | WebSocket (TCP)   | WebTransport (QUIC)  |
+| ------------------ | ----------------- | -------------------- |
+| HOL Blocking       | Yes (all streams) | No (per-stream)      |
+| Connection Setup   | 2-3 RTT (TCP+TLS) | 1 RTT (0-RTT resume) |
+| Packet Loss Impact | All data delayed  | Only affected stream |
+| Multiple Streams   | Simulated (mux)   | Native support       |
+| Unreliable Mode    | No                | Yes (datagrams)      |
+
+### Why This Matters for Cricket
+
+1. **Ball-by-ball updates**: 6 balls/over, ~36 balls in death overs of T20 = high frequency
+2. **Audio latency**: Commentary must feel "live" - 500ms delay ruins immersion
+3. **Network variability**: Mobile users on 4G/5G have packet loss spikes
+4. **Concurrent streams**: Text + Audio + Score should be independent
+
+**Recommendation**: Use WebTransport as primary, WebSocket as fallback.
+
+---
+
 ## Data Flow
 
 ```
@@ -764,6 +911,7 @@ Every implementation must pass the Benaud Test:
 | 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                             |
 | 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table                                |
 | 3.0     | 2026-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
+| 3.1     | 2026-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
 
 ---
 

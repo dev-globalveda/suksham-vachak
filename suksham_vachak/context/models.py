@@ -216,6 +216,13 @@ class NarrativeState:
         )
         if self.dramatic_potential:
             lines.append(f"Potential: {self.dramatic_potential}")
+
+        # Include callbacks (in-match + historical from RAG)
+        if self.callbacks_available:
+            lines.append("\nMemory Lane:")
+            for callback in self.callbacks_available[:3]:
+                lines.append(f"  - {callback}")
+
         return "\n".join(lines)
 
 

@@ -170,6 +170,10 @@ cython_debug/
 data/cricsheet_all_male_json.zip
 data/cricsheet/
 
+# RAG vector database (regenerated from source data)
+data/vector_db/*
+!data/vector_db/.gitkeep
+
 # TTS cache and output
 .tts_cache/
 output/

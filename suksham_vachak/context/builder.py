@@ -18,6 +18,7 @@ from .pressure import PressureCalculator
 
 if TYPE_CHECKING:
     from suksham_vachak.parser import CricketEvent, MatchInfo
+    from suksham_vachak.rag import DejaVuRetriever
 
 
 class ContextBuilder:
@@ -25,17 +26,25 @@ class ContextBuilder:
 
     This class aggregates data from parsed events and maintains
     state to provide comprehensive context for each delivery.
+
+    Optionally integrates with RAG retriever for historical parallels.
     """
 
-    def __init__(self, match_info: MatchInfo) -> None:
+    def __init__(
+        self,
+        match_info: MatchInfo,
+        rag_retriever: DejaVuRetriever | None = None,
+    ) -> None:
         """Initialize context builder.
 
         Args:
             match_info: Match metadata from parser
+            rag_retriever: Optional RAG retriever for historical parallels
         """
         self.match_info = match_info
         self.pressure_calc = PressureCalculator()
         self.narrative_tracker = NarrativeTracker()
+        self.rag_retriever = rag_retriever
 
         # Match state tracking
         self._innings_number = 1
@@ -109,6 +118,22 @@ class ContextBuilder:
             bowler_wickets=self._bowler_stats.get(event.bowler, {}).get("wickets", 0),
             partnership_runs=self._partnership_runs,
         )
+
+        # Enhance with RAG historical parallels (Déjà Vu Engine)
+        if self.rag_retriever is not None:
+            try:
+                historical_callbacks = self.rag_retriever.retrieve(
+                    event=event,
+                    match=match_situation,
+                    pressure=pressure_level,
+                )
+                # Prepend historical callbacks (higher priority)
+                narrative_state.callbacks_available = (historical_callbacks + narrative_state.callbacks_available)[
+                    :5
+                ]  # Limit total callbacks
+            except Exception:  # noqa: S110
+                # RAG failures shouldn't break commentary generation
+                pass
 
         # Determine suggested tone and length
         suggested_tone = self._determine_tone(event, pressure_level)

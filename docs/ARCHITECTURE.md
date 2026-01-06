@@ -844,6 +844,298 @@ hypercorn --quic-bind 0.0.0.0:443 --certfile cert.pem --keyfile key.pem app:app
 
 ---
 
+## Future Direction: MoQ (Media over QUIC)
+
+### Why MoQ?
+
+While WebTransport solves the transport layer, **MoQ (Media over QUIC)** is an IETF standard specifically designed for live media delivery. As of 2026, it's gaining significant traction in live sports broadcasting.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Protocol Evolution for Live Media                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Era 1 (2010s):  RTMP ──▶ Ingest ──▶ HLS/DASH ──▶ Playback      │
+│                  └── 1-3s ──┘        └── 6-30s latency ──┘      │
+│                                                                  │
+│  Era 2 (2020s):  WebRTC                                          │
+│                  └── Sub-second, but P2P (doesn't scale) ──┘    │
+│                                                                  │
+│  Era 3 (2025+):  MoQ (Media over QUIC)                           │
+│                  └── Sub-second + CDN-scale + track-based ──┘   │
+│                                                                  │
+│  MoQ = Best of all worlds                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### MoQ vs WebTransport
+
+| Aspect                | WebTransport              | MoQ                                     |
+| --------------------- | ------------------------- | --------------------------------------- |
+| **Purpose**           | General-purpose transport | Media-optimized protocol                |
+| **Latency**           | Low (you manage it)       | Sub-second (built-in)                   |
+| **CDN Support**       | Manual implementation     | Native relay architecture               |
+| **Track Model**       | DIY stream management     | First-class tracks (audio, video, data) |
+| **Pub/Sub**           | DIY                       | Built-in publish/subscribe semantics    |
+| **Quality Switching** | DIY                       | Native ABR (Adaptive Bitrate) support   |
+| **Fan-out**           | Manual                    | Relay handles millions of subscribers   |
+
+### MoQ Relay Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  MoQ for Live Cricket Commentary                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐                                                │
+│  │  Commentary  │                                                │
+│  │   Server     │                                                │
+│  │              │     PUBLISH                                    │
+│  │ ┌──────────┐ │                                                │
+│  │ │ Benaud   │─┼────▶ Track: audio/benaud ───┐                 │
+│  │ │ Audio    │ │                              │                 │
+│  │ └──────────┘ │                              │                 │
+│  │ ┌──────────┐ │                              ▼                 │
+│  │ │ Greig    │─┼────▶ Track: audio/greig ──▶ ┌──────────────┐  │
+│  │ │ Audio    │ │                              │  MoQ Relay   │  │
+│  │ └──────────┘ │                              │  (CDN Edge)  │  │
+│  │ ┌──────────┐ │                              │              │  │
+│  │ │ Doshi    │─┼────▶ Track: audio/doshi ──▶ │  Fan-out to  │  │
+│  │ │ Hindi    │ │                              │  millions    │  │
+│  │ └──────────┘ │                              │              │  │
+│  │ ┌──────────┐ │                              └──────┬───────┘  │
+│  │ │ Text     │─┼────▶ Track: text/captions ──────────┤          │
+│  │ └──────────┘ │                                     │          │
+│  │ ┌──────────┐ │                                     │          │
+│  │ │ Score    │─┼────▶ Track: data/score ─────────────┤          │
+│  │ └──────────┘ │                                     │          │
+│  └──────────────┘                                     │          │
+│                                                       │          │
+│                              SUBSCRIBE                ▼          │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │  Subscriber  │  │  Subscriber  │  │  Subscriber  │           │
+│  │              │  │              │  │              │           │
+│  │ audio/benaud │  │ audio/doshi  │  │ data/score   │           │
+│  │ text/captions│  │              │  │ data/ball    │           │
+│  │              │  │ (Hindi only) │  │ (widget)     │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
+│                                                                  │
+│  User picks persona    Mobile data      Scoreboard              │
+│  + captions            saver mode       widget only             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Track Structure for Suksham Vachak
+
+```python
+# MoQ Track Namespace for Cricket Commentary
+TRACKS = {
+    # Audio tracks (one per persona)
+    "suksham/audio/benaud": {
+        "type": "audio",
+        "codec": "opus",
+        "bitrate": "48kbps",
+        "description": "Richie Benaud - English, minimalist"
+    },
+    "suksham/audio/greig": {
+        "type": "audio",
+        "codec": "opus",
+        "bitrate": "48kbps",
+        "description": "Tony Greig - English, dramatic"
+    },
+    "suksham/audio/doshi": {
+        "type": "audio",
+        "codec": "opus",
+        "bitrate": "48kbps",
+        "description": "Sushil Doshi - Hindi"
+    },
+
+    # Text track (for captions/accessibility)
+    "suksham/text/commentary": {
+        "type": "text",
+        "format": "json",
+        "description": "Live commentary text"
+    },
+
+    # Data tracks (for widgets, overlays)
+    "suksham/data/score": {
+        "type": "data",
+        "format": "json",
+        "description": "Live score: 156/4 (18.2)"
+    },
+    "suksham/data/ball": {
+        "type": "data",
+        "format": "json",
+        "description": "Ball-by-ball events"
+    },
+    "suksham/data/pressure": {
+        "type": "data",
+        "format": "json",
+        "description": "Pressure index, momentum"
+    },
+}
+```
+
+### Subscriber Patterns
+
+```python
+# Pattern 1: Full experience
+subscriber.subscribe([
+    "suksham/audio/benaud",
+    "suksham/text/commentary",
+    "suksham/data/score",
+])
+
+# Pattern 2: Hindi audio only (mobile data saver)
+subscriber.subscribe([
+    "suksham/audio/doshi",
+])
+
+# Pattern 3: Scoreboard widget (no audio)
+subscriber.subscribe([
+    "suksham/data/score",
+    "suksham/data/ball",
+])
+
+# Pattern 4: Switch persona mid-match
+subscriber.unsubscribe("suksham/audio/benaud")
+subscriber.subscribe("suksham/audio/greig")  # Instant switch!
+```
+
+### MoQ Implementations (2026)
+
+| Implementation | Language   | Maturity   | Notes                                |
+| -------------- | ---------- | ---------- | ------------------------------------ |
+| **moq-rs**     | Rust       | Production | High performance, used by Cloudflare |
+| **moq-go**     | Go         | Production | Easy integration with Go backends    |
+| **libmoq**     | C++        | Production | Meta's implementation, battle-tested |
+| **moq-js**     | TypeScript | Beta       | Browser client library               |
+
+### CDN Support
+
+| Provider           | MoQ Support   | Notes                     |
+| ------------------ | ------------- | ------------------------- |
+| **Cloudflare**     | ✅ Production | Native MoQ relay service  |
+| **Akamai**         | ✅ Production | MoQ edge support          |
+| **Fastly**         | ✅ Beta       | QUIC-native CDN           |
+| **AWS CloudFront** | 🔄 Coming     | HTTP/3 ready, MoQ pending |
+
+### Why MoQ is Perfect for Cricket
+
+1. **Multi-persona streaming**: Each commentator is a separate track
+
+   - User picks Benaud OR Greig - server doesn't duplicate work
+
+2. **Audio-only mode**: Subscribe to just audio track
+
+   - Mobile data saver for fans on cellular
+
+3. **Instant persona switch**: Unsubscribe/subscribe is instant
+
+   - No rebuffering, no reconnection
+
+4. **CDN-native scaling**: Relay architecture handles IPL-scale audiences
+
+   - Millions of concurrent viewers, single origin
+
+5. **Sub-second latency**: Glass-to-glass under 500ms
+
+   - Commentary feels truly live
+
+6. **Graceful degradation**: Network issues? Drop data tracks, keep audio
+   - Priority-based track delivery
+
+### Migration Path
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Suksham Vachak Streaming Evolution                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Phase 1 (Current):   Demo with file output                      │
+│                       └── Good for development/testing           │
+│                                                                  │
+│  Phase 2 (Next):      WebSocket streaming                        │
+│                       └── Works everywhere, simple               │
+│                                                                  │
+│  Phase 3 (Future):    WebTransport + WebSocket fallback          │
+│                       └── Lower latency, independent streams     │
+│                                                                  │
+│  Phase 4 (Target):    MoQ with WebSocket fallback                │
+│                       └── CDN-scale, track-based, sub-second     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Server Implementation Sketch
+
+```python
+# Future: MoQ Publisher for Commentary
+from moq import Publisher, Track
+
+class CommentaryPublisher:
+    def __init__(self, relay_url: str):
+        self.publisher = Publisher(relay_url)
+
+        # Create tracks for each persona
+        self.audio_tracks = {
+            "benaud": self.publisher.create_track("suksham/audio/benaud"),
+            "greig": self.publisher.create_track("suksham/audio/greig"),
+            "doshi": self.publisher.create_track("suksham/audio/doshi"),
+        }
+        self.text_track = self.publisher.create_track("suksham/text/commentary")
+        self.score_track = self.publisher.create_track("suksham/data/score")
+
+    async def publish_commentary(self, event: CricketEvent):
+        # Generate commentary for all personas in parallel
+        commentaries = await asyncio.gather(
+            self.generate(event, BENAUD),
+            self.generate(event, GREIG),
+            self.generate(event, DOSHI),
+        )
+
+        # Synthesize audio for each
+        audio_bytes = await asyncio.gather(
+            self.tts.synthesize(commentaries[0].text, BENAUD),
+            self.tts.synthesize(commentaries[1].text, GREIG),
+            self.tts.synthesize(commentaries[2].text, DOSHI),
+        )
+
+        # Publish to respective tracks (relay fans out to subscribers)
+        await self.audio_tracks["benaud"].publish(audio_bytes[0])
+        await self.audio_tracks["greig"].publish(audio_bytes[1])
+        await self.audio_tracks["doshi"].publish(audio_bytes[2])
+
+        # Publish text (any persona, they're similar enough)
+        await self.text_track.publish(json.dumps({
+            "ball": event.ball_number,
+            "text": commentaries[0].text,
+        }))
+
+        # Publish score update
+        await self.score_track.publish(json.dumps({
+            "score": f"{event.runs}/{event.wickets}",
+            "overs": event.overs,
+        }))
+```
+
+### Recommendation
+
+**For production live streaming at scale, MoQ is the target architecture.**
+
+- Start with WebSocket (works everywhere)
+- Add WebTransport for modern browsers
+- Move to MoQ when CDN support matures and browser clients stabilize
+
+MoQ gives us the perfect abstraction for cricket commentary:
+
+- **Tracks = Personas** (Benaud, Greig, Doshi)
+- **Relay = CDN** (handles millions of fans)
+- **Subscribe = User choice** (pick your commentator)
+
+---
+
 ## Data Flow
 
 ```
@@ -1056,6 +1348,7 @@ Every implementation must pass the Benaud Test:
 | 3.0     | 2026-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
 | 3.1     | 2026-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
 | 3.2     | 2026-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
+| 3.3     | 2026-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
 
 ---
 

@@ -1,8 +1,8 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 2.0
-> **Last Updated**: January 5, 2026
-> **Status**: Phases 1 & 2 Complete, Phase 3 (RAG) Next
+> **Document Version**: 3.0
+> **Last Updated**: January 6, 2026
+> **Status**: Phases 1, 2 & 3 Complete
 
 ---
 
@@ -371,6 +371,189 @@ class ProsodyController:
 
 ---
 
+## TTS Streaming Architecture (Production)
+
+### Data Growth Analysis
+
+The demo implementation saves audio files to disk, which is unsuitable for production live feeds.
+
+#### Current Demo Approach
+
+```
+LLM → TTS → Save File → Play
+```
+
+**Per-clip metrics:**
+
+- Average commentary: 2-5 seconds
+- File size: 30-80KB per MP3 clip (24kHz)
+
+#### Live Feed Projections
+
+| Match Type | Total Balls | Key Moments\* | Audio Files | Total Size |
+| ---------- | ----------- | ------------- | ----------- | ---------- |
+| T20        | ~240        | 50-80         | 50-80       | 2-4 MB     |
+| ODI        | ~600        | 100-150       | 100-150     | 5-8 MB     |
+| Test (day) | ~540        | 80-120        | 80-120      | 4-6 MB     |
+
+\*Key moments: wickets, boundaries, milestones, high-pressure situations
+
+**Monthly projection (10 matches/day):** 1-2 GB of audio files
+
+#### The Problem
+
+Saving every audio clip creates:
+
+1. **Disk I/O bottleneck** - Writing files during live commentary
+2. **Storage growth** - Unbounded file accumulation
+3. **Cleanup complexity** - Managing stale files
+4. **Latency** - File write adds delay before playback
+
+### Recommended Production Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TTS STREAMING ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────┐     ┌─────────────┐     ┌──────────────────────────┐  │
+│  │ Commentary  │────▶│ TTS Engine  │────▶│    Audio Streamer        │  │
+│  │   Engine    │     │ (in-memory) │     │                          │  │
+│  │             │     │             │     │  ┌────────────────────┐  │  │
+│  │ "Four."     │     │ Generate    │     │  │  WebSocket/SSE     │  │  │
+│  │             │     │ audio bytes │     │  │  to clients        │  │  │
+│  └─────────────┘     └──────┬──────┘     │  └────────────────────┘  │  │
+│                             │            │                          │  │
+│                             │            │  ┌────────────────────┐  │  │
+│                             │            │  │  HTTP chunked      │  │  │
+│                             │            │  │  streaming         │  │  │
+│                             │            │  └────────────────────┘  │  │
+│                             │            └──────────────────────────┘  │
+│                             │                                          │
+│                             ▼                                          │
+│                    ┌─────────────────┐                                 │
+│                    │   LRU Cache     │  ← Bounded memory (50-100MB)    │
+│                    │                 │                                 │
+│                    │  • Key: hash    │  ← Same text = cache hit        │
+│                    │  • TTL: 15min   │  ← Auto-expire old entries      │
+│                    │  • Max: 500     │  ← Limit entry count            │
+│                    └─────────────────┘                                 │
+│                             │                                          │
+│                             ▼                                          │
+│                    ┌─────────────────┐                                 │
+│                    │  Archive Store  │  ← Optional, on-demand only     │
+│                    │  (S3/GCS)       │                                 │
+│                    │                 │                                 │
+│                    │  • User request │  ← "Save this moment"           │
+│                    │  • Highlights   │  ← Post-match compilation       │
+│                    └─────────────────┘                                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+#### 1. Stream, Don't Save
+
+```python
+# ❌ Current (Demo)
+audio_bytes = tts.synthesize(text)
+save_to_file(audio_bytes, "output/clip.mp3")
+return file_path
+
+# ✅ Production (Streaming)
+audio_bytes = tts.synthesize(text)
+await websocket.send_bytes(audio_bytes)  # Direct to client
+```
+
+#### 2. Bounded In-Memory Cache
+
+```python
+from functools import lru_cache
+from cachetools import TTLCache
+
+class StreamingTTSEngine:
+    def __init__(self):
+        # LRU cache with TTL expiry
+        self._cache = TTLCache(
+            maxsize=500,           # Max 500 entries
+            ttl=900                # 15-minute TTL
+        )
+        self._max_memory_mb = 100  # Hard limit
+
+    def synthesize(self, text: str, persona: Persona) -> bytes:
+        cache_key = self._hash(text, persona.name)
+
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        audio_bytes = self._provider.synthesize(text)
+
+        # Only cache if within memory budget
+        if self._current_memory_mb < self._max_memory_mb:
+            self._cache[cache_key] = audio_bytes
+
+        return audio_bytes
+```
+
+#### 3. WebSocket Streaming Endpoint
+
+```python
+@app.websocket("/ws/commentary/{match_id}")
+async def commentary_stream(websocket: WebSocket, match_id: str):
+    await websocket.accept()
+
+    async for event in match_event_stream(match_id):
+        # Generate commentary
+        commentary = engine.generate(event, persona)
+
+        # Synthesize audio (in-memory)
+        audio_bytes = tts.synthesize(commentary.text, persona)
+
+        # Stream directly to client
+        await websocket.send_json({
+            "type": "commentary",
+            "text": commentary.text,
+            "ball": event.ball_number
+        })
+        await websocket.send_bytes(audio_bytes)
+```
+
+#### 4. On-Demand Archive Only
+
+```python
+@app.post("/api/archive-moment")
+async def archive_moment(moment_id: str, user_id: str):
+    """User explicitly requests to save a moment."""
+    audio_bytes = cache.get(moment_id)
+    if audio_bytes:
+        # Upload to cloud storage
+        url = await storage.upload(
+            f"highlights/{user_id}/{moment_id}.mp3",
+            audio_bytes
+        )
+        return {"archived_url": url}
+```
+
+### Memory Budget Example
+
+| Component                | Size       | Notes                |
+| ------------------------ | ---------- | -------------------- |
+| LRU Cache (500 clips)    | ~50 MB     | 500 × 100KB average  |
+| Active WebSocket buffers | ~10 MB     | 100 concurrent users |
+| TTS provider buffer      | ~5 MB      | Single synthesis     |
+| **Total**                | **~65 MB** | Well within bounds   |
+
+### Benefits
+
+1. **Zero disk I/O** during live commentary
+2. **Bounded memory** with automatic eviction
+3. **Lower latency** (no file write)
+4. **Horizontal scaling** (stateless workers)
+5. **Cost savings** (no storage accumulation)
+
+---
+
 ## Data Flow
 
 ```
@@ -474,6 +657,17 @@ suksham-vachak/
 │   │   ├── base.py             # TTSProvider base
 │   │   ├── google.py           # Google Cloud TTS
 │   │   └── prosody.py          # SSML prosody control
+│   ├── rag/                    # NEW: RAG Déjà Vu Engine
+│   │   ├── __init__.py
+│   │   ├── models.py           # CricketMoment, RetrievedMoment
+│   │   ├── embeddings.py       # VoyageEmbeddingClient
+│   │   ├── store.py            # MomentVectorStore (ChromaDB)
+│   │   ├── retriever.py        # DejaVuRetriever
+│   │   ├── config.py           # RAGConfig
+│   │   ├── cli.py              # Ingestion CLI
+│   │   └── ingestion/
+│   │       ├── cricsheet.py    # Parse matches → moments
+│   │       └── curated.py      # Load iconic_moments.yaml
 │   └── api/
 │       ├── __init__.py
 │       ├── app.py              # FastAPI app
@@ -483,12 +677,16 @@ suksham-vachak/
 │       └── app/
 │           └── page.tsx        # Main UI
 ├── data/
-│   └── cricsheet_sample/       # Sample match data
+│   ├── cricsheet_sample/       # Sample match data
+│   ├── curated/
+│   │   └── iconic_moments.yaml # Hand-curated classic moments
+│   └── vector_db/              # ChromaDB persistent storage
 ├── tests/
 │   ├── test_parser.py
-│   ├── test_context.py         # NEW: Context tests
+│   ├── test_context.py         # Context tests
 │   ├── test_commentary.py
-│   └── test_tts.py
+│   ├── test_tts.py
+│   └── test_rag.py             # RAG Déjà Vu tests
 ├── demo_llm_commentary.py      # CLI demo script
 └── docs/
     ├── ARCHITECTURE.md         # This file
@@ -517,13 +715,16 @@ suksham-vachak/
 - [x] Demo script (demo_llm_commentary.py)
 - [x] Persona-specific outputs working
 
-### 🔜 Phase 3: RAG - Déjà Vu Engine (Next)
+### ✅ Phase 3: RAG - Déjà Vu Engine (Complete)
 
-- [ ] Vector database for historical moments
-- [ ] Embed match situations for similarity search
-- [ ] "This reminds me of..." retrieval
-- [ ] Player comparison retrieval
-- [ ] Classic match callbacks
+- [x] ChromaDB vector database for historical moments
+- [x] Voyage API embeddings for similarity search
+- [x] CricketMoment dataclass with embedding generation
+- [x] Curated iconic moments (12 hand-picked classics)
+- [x] Cricsheet ingestion pipeline
+- [x] DejaVuRetriever with multi-strategy retrieval
+- [x] Integration with ContextBuilder via callbacks
+- [x] CLI for ingestion/stats/management
 
 ### 📋 Phase 4: Stats Engine
 
@@ -557,11 +758,12 @@ Every implementation must pass the Benaud Test:
 
 ## Document History
 
-| Version | Date       | Author | Changes                                    |
-| ------- | ---------- | ------ | ------------------------------------------ |
-| 1.0     | 2026-01-01 | Team   | Initial architecture                       |
-| 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs |
-| 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table    |
+| Version | Date       | Author | Changes                                                                |
+| ------- | ---------- | ------ | ---------------------------------------------------------------------- |
+| 1.0     | 2026-01-01 | Team   | Initial architecture                                                   |
+| 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                             |
+| 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table                                |
+| 3.0     | 2026-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
 
 ---
 

@@ -73,6 +73,7 @@ markers = [
 target-version = "py310"
 line-length = 120
 fix = true
+exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = [

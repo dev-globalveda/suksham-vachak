@@ -748,14 +748,215 @@ python demo_llm_commentary.py
 
 ---
 
+## Phase 4: Stats Engine
+
+### Overview
+
+Add player vs bowler matchup statistics to commentary context. Uses SQLite for fast, embedded storage with no external dependencies.
+
+**Key Features:**
+
+- Head-to-head statistics (runs, balls, strike rate, dismissals)
+- Integration with ContextBuilder for LLM context
+- CLI for ingestion and queries
+
+### Module Structure
+
+```
+suksham_vachak/stats/
+├── __init__.py              # Module exports, create_engine()
+├── models.py                # PlayerMatchupStats, MatchupRecord
+├── db.py                    # SQLite database layer
+├── aggregator.py            # Parse Cricsheet → matchup records
+├── matchups.py              # MatchupEngine query class
+├── normalize.py             # Player name normalization
+├── config.py                # StatsConfig
+└── cli.py                   # CLI for ingestion/queries
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE players (
+    id TEXT PRIMARY KEY,           -- "v_kohli" (normalized)
+    name TEXT NOT NULL,            -- "V Kohli" (display)
+    full_name TEXT,
+    team TEXT
+);
+
+CREATE TABLE matchups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batter_id TEXT NOT NULL,
+    bowler_id TEXT NOT NULL,
+    match_id TEXT NOT NULL,
+    match_date TEXT,
+    match_format TEXT,             -- "T20", "ODI", "Test"
+    venue TEXT,
+    balls_faced INTEGER DEFAULT 0,
+    runs_scored INTEGER DEFAULT 0,
+    dots INTEGER DEFAULT 0,
+    fours INTEGER DEFAULT 0,
+    sixes INTEGER DEFAULT 0,
+    dismissals INTEGER DEFAULT 0,
+    dismissal_type TEXT,
+    FOREIGN KEY (batter_id) REFERENCES players(id),
+    FOREIGN KEY (bowler_id) REFERENCES players(id)
+);
+
+CREATE INDEX idx_matchups_pair ON matchups(batter_id, bowler_id);
+```
+
+### Key Classes
+
+#### PlayerMatchupStats (`models.py`)
+
+```python
+@dataclass
+class PlayerMatchupStats:
+    batter_id: str
+    batter_name: str
+    bowler_id: str
+    bowler_name: str
+    matches: int
+    balls_faced: int
+    runs_scored: int
+    dismissals: int
+    dots: int
+    fours: int
+    sixes: int
+
+    @property
+    def strike_rate(self) -> float: ...
+    @property
+    def average(self) -> float: ...
+    def to_commentary_context(self) -> str: ...
+    def to_short_context(self) -> str: ...
+```
+
+#### MatchupEngine (`matchups.py`)
+
+```python
+class MatchupEngine:
+    def get_head_to_head(
+        self, batter: str, bowler: str, match_format: str | None = None
+    ) -> PlayerMatchupStats | None: ...
+
+    def get_batter_vs_all(self, batter: str, min_balls: int = 6) -> list[PlayerMatchupStats]: ...
+    def get_bowler_vs_all(self, bowler: str, min_balls: int = 6) -> list[PlayerMatchupStats]: ...
+    def get_batter_nemesis(self, batter: str) -> list[PlayerMatchupStats]: ...
+    def get_bowler_bunnies(self, bowler: str) -> list[PlayerMatchupStats]: ...
+```
+
+### Integration with ContextBuilder
+
+The stats engine integrates via an optional parameter:
+
+```python
+# context/builder.py
+class ContextBuilder:
+    def __init__(
+        self,
+        match_info: MatchInfo,
+        rag_retriever: DejaVuRetriever | None = None,
+        stats_engine: MatchupEngine | None = None,  # NEW
+    ) -> None: ...
+
+    def build(self, event: CricketEvent) -> RichContext:
+        # ... existing logic ...
+
+        # Add matchup context if available
+        if self.stats_engine is not None:
+            matchup = self.stats_engine.get_head_to_head(event.batter, event.bowler)
+            if matchup and matchup.balls_faced >= 10:
+                narrative_state.matchup_context = matchup.to_short_context()
+```
+
+The `NarrativeState` includes the matchup in its prompt output:
+
+```
+=== NARRATIVE ===
+Storyline: Contest evenly poised
+Matchup: V Kohli vs JM Anderson: 245/180 SR 136, avg 82
+Momentum: balanced
+```
+
+### CLI Usage
+
+```bash
+# Ingest Cricsheet data into SQLite
+python -m suksham_vachak.stats.cli ingest
+
+# Show database statistics
+python -m suksham_vachak.stats.cli info
+
+# Query head-to-head matchup
+python -m suksham_vachak.stats.cli matchup "SPD Smith" "Yasir Shah"
+
+# Show player's matchups
+python -m suksham_vachak.stats.cli player "DA Warner"
+python -m suksham_vachak.stats.cli player "JM Anderson" --bowler
+
+# Clear database
+python -m suksham_vachak.stats.cli clear
+```
+
+### Demo Script Usage
+
+```bash
+# Run with stats enabled
+python demo_llm_commentary.py --stats
+
+# Run with both RAG and stats
+python demo_llm_commentary.py --rag --stats
+```
+
+### Files Modified
+
+| File                                | Change                    |
+| ----------------------------------- | ------------------------- |
+| `.gitignore`                        | Add `data/stats.db`       |
+| `suksham_vachak/context/builder.py` | Add stats_engine param    |
+| `suksham_vachak/context/models.py`  | Add matchup_context field |
+| `demo_llm_commentary.py`            | Add `--stats` flag        |
+
+### Files Created
+
+| File                                 | Purpose              |
+| ------------------------------------ | -------------------- |
+| `suksham_vachak/stats/__init__.py`   | Module exports       |
+| `suksham_vachak/stats/models.py`     | Stats dataclasses    |
+| `suksham_vachak/stats/db.py`         | SQLite layer         |
+| `suksham_vachak/stats/aggregator.py` | Stats calculation    |
+| `suksham_vachak/stats/matchups.py`   | Query engine         |
+| `suksham_vachak/stats/normalize.py`  | Player name handling |
+| `suksham_vachak/stats/config.py`     | Configuration        |
+| `suksham_vachak/stats/cli.py`        | CLI interface        |
+| `tests/test_stats.py`                | Unit tests           |
+
+### Verification
+
+```bash
+# Ingest data
+python -m suksham_vachak.stats.cli ingest
+# Expected: "Ingested X players, Y matchup records from Z matches"
+
+# Query a matchup
+python -m suksham_vachak.stats.cli matchup "SPD Smith" "Yasir Shah"
+# Expected:
+# === SPD Smith vs Yasir Shah ===
+# Matches: 3
+# Runs: 140 off 235 balls
+# Strike Rate: 59.6
+# Dismissed: 3x (avg 46.7)
+
+# Run demo with stats
+python demo_llm_commentary.py --stats --moments 2
+# Should see "Matchup:" in context summary
+```
+
+---
+
 ## Future Phases
-
-### Phase 4: Stats Engine
-
-- Player tendency analysis
-- Matchup statistics
-- Venue/conditions analysis
-- Historical averages
 
 ### Phase 5: Forecasting
 
@@ -771,3 +972,4 @@ python demo_llm_commentary.py
 | Version | Date       | Author | Changes                       |
 | ------- | ---------- | ------ | ----------------------------- |
 | 1.0     | 2026-01-05 | Team   | Initial guide with Phases 1-3 |
+| 2.0     | 2026-01-06 | Team   | Added Phase 4 Stats Engine    |

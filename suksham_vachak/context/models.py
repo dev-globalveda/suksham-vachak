@@ -204,12 +204,18 @@ class NarrativeState:
     key_subplot: str | None = None  # "Kohli approaching 100", "Bumrah's spell"
     dramatic_potential: str | None = None  # What could happen next
     callbacks_available: list[str] = field(default_factory=list)  # Earlier moments to reference
+    matchup_context: str | None = None  # Player vs bowler historical stats
 
     def to_prompt_context(self) -> str:
         """Convert to text for LLM prompt."""
         lines = [f"Storyline: {self.current_storyline}"]
         if self.key_subplot:
             lines.append(f"Subplot: {self.key_subplot}")
+
+        # Include matchup stats if available
+        if self.matchup_context:
+            lines.append(f"Matchup: {self.matchup_context}")
+
         lines.append(f"Momentum: {self.momentum.value}")
         lines.append(
             f"Tension: {'High' if self.tension_level > 0.7 else 'Medium' if self.tension_level > 0.4 else 'Low'}"

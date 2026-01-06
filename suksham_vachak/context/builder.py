@@ -19,6 +19,7 @@ from .pressure import PressureCalculator
 if TYPE_CHECKING:
     from suksham_vachak.parser import CricketEvent, MatchInfo
     from suksham_vachak.rag import DejaVuRetriever
+    from suksham_vachak.stats import MatchupEngine
 
 
 class ContextBuilder:
@@ -27,24 +28,28 @@ class ContextBuilder:
     This class aggregates data from parsed events and maintains
     state to provide comprehensive context for each delivery.
 
-    Optionally integrates with RAG retriever for historical parallels.
+    Optionally integrates with RAG retriever for historical parallels
+    and Stats engine for player matchup data.
     """
 
     def __init__(
         self,
         match_info: MatchInfo,
         rag_retriever: DejaVuRetriever | None = None,
+        stats_engine: MatchupEngine | None = None,
     ) -> None:
         """Initialize context builder.
 
         Args:
             match_info: Match metadata from parser
             rag_retriever: Optional RAG retriever for historical parallels
+            stats_engine: Optional stats engine for player matchup data
         """
         self.match_info = match_info
         self.pressure_calc = PressureCalculator()
         self.narrative_tracker = NarrativeTracker()
         self.rag_retriever = rag_retriever
+        self.stats_engine = stats_engine
 
         # Match state tracking
         self._innings_number = 1
@@ -118,6 +123,16 @@ class ContextBuilder:
             bowler_wickets=self._bowler_stats.get(event.bowler, {}).get("wickets", 0),
             partnership_runs=self._partnership_runs,
         )
+
+        # Enhance with player matchup statistics (Stats Engine)
+        if self.stats_engine is not None:
+            try:
+                matchup = self.stats_engine.get_head_to_head(event.batter, event.bowler)
+                if matchup and matchup.balls_faced >= 10:
+                    narrative_state.matchup_context = matchup.to_short_context()
+            except Exception:  # noqa: S110
+                # Stats failures shouldn't break commentary generation
+                pass
 
         # Enhance with RAG historical parallels (Déjà Vu Engine)
         if self.rag_retriever is not None:

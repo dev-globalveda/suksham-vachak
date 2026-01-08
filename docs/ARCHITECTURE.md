@@ -1,8 +1,182 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 4.0
-> **Last Updated**: January 6, 2026
-> **Status**: Phases 1, 2, 3 & 4 Complete
+> **Document Version**: 5.0
+> **Last Updated**: January 8, 2025
+> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions)
+
+---
+
+## C4 Architecture Diagrams
+
+### Level 1: System Context
+
+```mermaid
+graph TB
+    subgraph ext [External Systems]
+        CS[("Cricsheet<br/>Ball-by-ball data")]
+        LLM[("LLM Provider<br/>Claude/OpenAI")]
+        TTS[("TTS Provider<br/>Google/Azure/ElevenLabs")]
+    end
+
+    subgraph users [Users]
+        U1[("👤 Listener<br/>Receives commentary")]
+        U2[("👤 Admin<br/>Configures personas")]
+    end
+
+    SV["🏏 Suksham Vachak<br/>AI Cricket Commentary Engine"]
+
+    U1 -->|listens| SV
+    U2 -->|configures| SV
+    SV -->|fetches data| CS
+    SV -->|generates text| LLM
+    SV -->|synthesizes speech| TTS
+
+    style SV fill:#1168bd,stroke:#0b4884,color:#fff
+    style CS fill:#999,stroke:#666,color:#fff
+    style LLM fill:#999,stroke:#666,color:#fff
+    style TTS fill:#999,stroke:#666,color:#fff
+```
+
+### Level 2: Container Diagram
+
+```mermaid
+graph TB
+    subgraph SV [Suksham Vachak]
+        Parser["📄 Parser<br/><i>Python</i><br/>Cricsheet JSON → Events"]
+        Context["🧠 Context Engine<br/><i>Python</i><br/>Pressure, Momentum, Narrative"]
+        Stats["📊 Stats Engine<br/><i>Python/SQLite</i><br/>Matchups, Phases, Form"]
+        RAG["🔍 RAG Engine<br/><i>Python/ChromaDB</i><br/>Historical Parallels"]
+        Commentary["🎙️ Commentary Engine<br/><i>Python</i><br/>Persona + LLM Generation"]
+        TTS["🔊 TTS Engine<br/><i>Python</i><br/>SSML + Audio Synthesis"]
+
+        StatsDB[("💾 Stats DB<br/><i>SQLite</i>")]
+        VectorDB[("💾 Vector DB<br/><i>ChromaDB</i>")]
+    end
+
+    CS[("Cricsheet")]
+    LLM[("Claude API")]
+    TTSAPI[("TTS API")]
+
+    CS --> Parser
+    Parser --> Context
+    Context --> Stats
+    Context --> RAG
+    Stats --> StatsDB
+    RAG --> VectorDB
+    Context --> Commentary
+    Commentary --> LLM
+    Commentary --> TTS
+    TTS --> TTSAPI
+
+    style Parser fill:#438dd5,stroke:#2e6295,color:#fff
+    style Context fill:#438dd5,stroke:#2e6295,color:#fff
+    style Stats fill:#438dd5,stroke:#2e6295,color:#fff
+    style RAG fill:#438dd5,stroke:#2e6295,color:#fff
+    style Commentary fill:#438dd5,stroke:#2e6295,color:#fff
+    style TTS fill:#438dd5,stroke:#2e6295,color:#fff
+```
+
+### Level 3: Stats Engine Components
+
+```mermaid
+graph TB
+    subgraph Stats [Stats Engine]
+        DB["StatsDatabase<br/><i>SQLite CRUD</i>"]
+        Matchups["MatchupEngine<br/><i>Head-to-head queries</i>"]
+        Phases["PhaseEngine<br/><i>Powerplay/Death stats</i>"]
+        Form["FormEngine<br/><i>Recent form + trends</i>"]
+        Agg["StatsAggregator<br/><i>Cricsheet ingestion</i>"]
+        Norm["Normalizer<br/><i>Player ID cleanup</i>"]
+    end
+
+    SQLite[("stats.db")]
+    Parser["Parser"]
+    Context["Context Engine"]
+
+    Parser --> Agg
+    Agg --> Norm
+    Agg --> DB
+    DB --> SQLite
+    Matchups --> DB
+    Phases --> DB
+    Form --> DB
+    Context --> Matchups
+    Context --> Phases
+    Context --> Form
+
+    style DB fill:#85bbf0,stroke:#5d99c6
+    style Matchups fill:#85bbf0,stroke:#5d99c6
+    style Phases fill:#85bbf0,stroke:#5d99c6
+    style Form fill:#85bbf0,stroke:#5d99c6
+```
+
+### Level 3: Context Engine Components
+
+```mermaid
+graph TB
+    subgraph Context [Context Engine]
+        Builder["ContextBuilder<br/><i>Orchestrator</i>"]
+        Narrative["NarrativeTracker<br/><i>Storylines, subplots</i>"]
+        Pressure["PressureCalculator<br/><i>0-1 pressure score</i>"]
+        Models["ContextModels<br/><i>NarrativeState, etc.</i>"]
+    end
+
+    Parser["Parser"]
+    Stats["Stats Engine"]
+    RAG["RAG Engine"]
+    Commentary["Commentary Engine"]
+
+    Parser --> Builder
+    Builder --> Narrative
+    Builder --> Pressure
+    Builder --> Stats
+    Builder --> RAG
+    Builder --> Models
+    Models --> Commentary
+
+    style Builder fill:#85bbf0,stroke:#5d99c6
+    style Narrative fill:#85bbf0,stroke:#5d99c6
+    style Pressure fill:#85bbf0,stroke:#5d99c6
+    style Models fill:#85bbf0,stroke:#5d99c6
+```
+
+### Data Flow Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CS as Cricsheet
+    participant P as Parser
+    participant CTX as Context
+    participant S as Stats
+    participant R as RAG
+    participant C as Commentary
+    participant LLM as Claude
+    participant TTS as TTS
+
+    CS->>P: JSON match file
+    P->>CTX: CricketEvent stream
+
+    par Parallel Context Enrichment
+        CTX->>S: Get matchup stats
+        S-->>CTX: PlayerMatchupStats
+        CTX->>S: Get phase stats
+        S-->>CTX: PhaseStats
+        CTX->>S: Get recent form
+        S-->>CTX: RecentForm
+        CTX->>R: Find similar moments
+        R-->>CTX: RetrievedMoment[]
+    end
+
+    CTX->>CTX: Calculate pressure/momentum
+    CTX->>C: NarrativeState
+
+    C->>LLM: Prompt + Context
+    LLM-->>C: Commentary text
+
+    C->>TTS: Text + Prosody
+    TTS-->>User: Audio
+```
 
 ---
 
@@ -1250,15 +1424,17 @@ suksham-vachak/
 │   │   └── ingestion/
 │   │       ├── cricsheet.py    # Parse matches → moments
 │   │       └── curated.py      # Load iconic_moments.yaml
-│   ├── stats/                  # Stats Engine (Player Matchups)
+│   ├── stats/                  # Stats Engine (Player Matchups + Extensions)
 │   │   ├── __init__.py
-│   │   ├── models.py           # PlayerMatchupStats, MatchupRecord
+│   │   ├── models.py           # PlayerMatchupStats, PhaseStats, RecentForm
 │   │   ├── db.py               # SQLite database layer
-│   │   ├── aggregator.py       # Parse Cricsheet → matchup records
+│   │   ├── aggregator.py       # Parse Cricsheet → matchup records (with phase)
 │   │   ├── matchups.py         # MatchupEngine queries
+│   │   ├── phases.py           # PhaseEngine (powerplay/death stats)
+│   │   ├── form.py             # FormEngine (recent form + trends)
 │   │   ├── normalize.py        # Player name normalization
 │   │   ├── config.py           # StatsConfig
-│   │   └── cli.py              # Stats CLI
+│   │   └── cli.py              # Stats CLI (matchup, phase, form commands)
 │   └── api/
 │       ├── __init__.py
 │       ├── app.py              # FastAPI app
@@ -1325,6 +1501,20 @@ suksham-vachak/
 - [x] MatchupEngine query interface
 - [x] Integration with ContextBuilder (matchup_context)
 - [x] CLI for ingestion/queries
+
+#### Stats Engine Extensions (Complete)
+
+- [x] **PhaseEngine**: Phase-based performance queries
+  - T20: powerplay (1-6), middle (7-15), death (16-20)
+  - ODI: powerplay (1-10), middle (11-40), death (41-50)
+  - Test: session1/2/3 (heuristic via overs per day)
+- [x] **FormEngine**: Recent form with trend detection
+  - Rolling 5-match window
+  - Trend: improving/declining/stable (10% threshold)
+  - Works for batters and bowlers
+- [x] Phase column in matchups table + indexes
+- [x] Integration with ContextBuilder (phase_context, form_context)
+- [x] CLI commands: `phase`, `form`
 - [ ] Venue/conditions analysis (future)
 - [ ] Player tendency analysis (future)
 
@@ -1355,14 +1545,15 @@ Every implementation must pass the Benaud Test:
 
 | Version | Date       | Author | Changes                                                                |
 | ------- | ---------- | ------ | ---------------------------------------------------------------------- |
-| 1.0     | 2026-01-01 | Team   | Initial architecture                                                   |
-| 2.0     | 2026-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                             |
-| 2.1     | 2026-01-05 | Team   | Added D2 diagram and code mapping table                                |
-| 3.0     | 2026-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
-| 3.1     | 2026-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
-| 3.2     | 2026-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
-| 3.3     | 2026-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
-| 4.0     | 2026-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
+| 1.0     | 2025-01-01 | Team   | Initial architecture                                                   |
+| 2.0     | 2025-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                             |
+| 2.1     | 2025-01-05 | Team   | Added D2 diagram and code mapping table                                |
+| 3.0     | 2025-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
+| 3.1     | 2025-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
+| 3.2     | 2025-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
+| 3.3     | 2025-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
+| 4.0     | 2025-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
+| 5.0     | 2025-01-08 | Team   | Stats Extensions (PhaseEngine, FormEngine), C4 Mermaid diagrams        |
 
 ---
 

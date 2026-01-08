@@ -49,12 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add phase stats and recent form to Stats Engine by @dev-globalveda
 - Add ElevenLabs TTS provider by @dev-globalveda
 - Add structured logging and Python Data Model improvements by @dev-globalveda
+- Add local LLM support via Ollama for Pi 5 deployment by @dev-globalveda
 
 ### Miscellaneous Tasks
 
 - Update poetry.lock with chromadb dependency by @dev-globalveda
 - Remove vector_db from tracking (already in .gitignore) by @dev-globalveda
 - Exclude notebooks from ruff linting by @dev-globalveda
+- Add git-cliff changelog generation and OAuth2 roadmap by @dev-globalveda
 
 ---
 

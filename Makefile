@@ -49,6 +49,16 @@ docs-test: ## Test if documentation can be built without warnings or errors
 docs: ## Build and serve the documentation
 	@poetry run mkdocs serve
 
+.PHONY: changelog
+changelog: ## Generate CHANGELOG.md from git commits (requires git-cliff)
+	@echo "📝 Generating changelog from conventional commits"
+	@git cliff --output CHANGELOG.md
+	@echo "✅ CHANGELOG.md updated"
+
+.PHONY: changelog-preview
+changelog-preview: ## Preview changelog without writing to file
+	@git cliff --unreleased
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

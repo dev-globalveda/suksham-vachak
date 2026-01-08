@@ -1,8 +1,8 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 5.1
+> **Document Version**: 5.2
 > **Last Updated**: January 8, 2025
-> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions + Observability)
+> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions + Observability + Auth Roadmap)
 
 ---
 
@@ -474,6 +474,101 @@ sequenceDiagram
 
     Note over Client,TTS: All logs searchable by<br/>correlation_id=abc123
 ```
+
+---
+
+## Future: Authentication & Authorization
+
+Authentication is not yet implemented. When needed, here are the recommended approaches:
+
+### Option 1: Edge Authentication (Recommended for Demo/MVP)
+
+Use **Cloudflare Access (Zero Trust)** for instant protection without code changes:
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Browser    │────▶│ Cloudflare Access│────▶│  Suksham Vachak  │
+│              │     │                  │     │                  │
+│  User logs   │     │  Google/GitHub   │     │  No auth code    │
+│  in via IdP  │     │  OAuth flow      │     │  needed!         │
+└──────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+**Pros**: Zero code changes, handles OAuth flows, MFA support, audit logs
+**Cons**: Cloudflare-specific, no fine-grained app permissions
+
+### Option 2: FastAPI OAuth2 (Production)
+
+Add OAuth2 directly to FastAPI when you need:
+
+- API keys for programmatic access (iOS app, third-party integrations)
+- Fine-grained permissions (admin vs user vs read-only)
+- Token-based auth with refresh tokens
+- Custom scopes per endpoint
+
+```python
+# Future implementation sketch
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import OAuth2PasswordBearer, SecurityScopes
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="token",
+    scopes={
+        "commentary:read": "Read commentary",
+        "commentary:write": "Generate commentary",
+        "admin": "Admin access",
+    }
+)
+
+async def get_current_user(
+    security_scopes: SecurityScopes,
+    token: str = Depends(oauth2_scheme)
+) -> User:
+    # Validate JWT, check scopes
+    ...
+
+@app.post("/api/commentary")
+async def generate_commentary(
+    request: CommentaryRequest,
+    user: User = Security(get_current_user, scopes=["commentary:write"])
+):
+    ...
+```
+
+### Option 3: Auth Providers (Clerk, Auth0, Supabase Auth)
+
+For rapid production deployment with managed infrastructure:
+
+| Provider          | Pros                                      | Cons                        |
+| ----------------- | ----------------------------------------- | --------------------------- |
+| **Clerk**         | Beautiful UI, React/Next.js SDK, webhooks | Newer, pricing              |
+| **Auth0**         | Enterprise-grade, extensive docs          | Complex, expensive at scale |
+| **Supabase Auth** | Open source, PostgreSQL-backed            | Requires Supabase ecosystem |
+| **Firebase Auth** | Google integration, mobile SDKs           | Google lock-in              |
+
+### Recommended Migration Path
+
+```
+Phase 1 (Demo):     Cloudflare Access
+                    └── Zero code, instant protection
+
+Phase 2 (Beta):     Cloudflare + API Keys
+                    └── Add X-API-Key header for programmatic access
+
+Phase 3 (Production): FastAPI OAuth2 + JWT
+                    └── Full auth with scopes, refresh tokens
+                    └── Or Clerk/Auth0 for managed solution
+```
+
+### Security Considerations
+
+| Concern           | Mitigation                             |
+| ----------------- | -------------------------------------- |
+| API rate limiting | Use correlation IDs + Redis counters   |
+| Token storage     | HttpOnly cookies (web), Keychain (iOS) |
+| CORS              | Strict origin allowlist in FastAPI     |
+| Secrets           | Environment variables, never in code   |
+| Audit logging     | Already have correlation IDs in logs   |
 
 ---
 
@@ -1854,6 +1949,7 @@ Every implementation must pass the Benaud Test:
 | 4.0     | 2025-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
 | 5.0     | 2025-01-08 | Team   | Stats Extensions (PhaseEngine, FormEngine), C4 Mermaid diagrams        |
 | 5.1     | 2025-01-08 | Team   | Observability & APM: structured logging, correlation IDs, APM guide    |
+| 5.2     | 2025-01-08 | Team   | Future Auth section: Cloudflare Access, FastAPI OAuth2, auth providers |
 
 ---
 

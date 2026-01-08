@@ -46,6 +46,14 @@ class MatchContext:
     required_rate: float | None = None
     current_rate: float = 0.0
 
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        chase_info = f", target={self.target}" if self.target else ""
+        return (
+            f"MatchContext({self.teams[0]} vs {self.teams[1]}, "
+            f"{self.current_score}/{self.current_wickets} in {self.overs_completed} ov{chase_info})"
+        )
+
     @property
     def balls_bowled(self) -> int:
         """Total balls bowled in the current innings."""
@@ -121,6 +129,11 @@ class CricketEvent:
             return f"{self.batter} takes {self.runs_batter}"
         return f"Dot ball to {self.batter}"
 
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        score = f"{self.match_context.current_score}/{self.match_context.current_wickets}"
+        return f"CricketEvent({self.ball_number}: {self.batter} vs {self.bowler}, {self.event_type.value}, {score})"
+
 
 @dataclass
 class MatchInfo:
@@ -140,3 +153,8 @@ class MatchInfo:
     outcome_by_wickets: int | None = None
     player_of_match: list[str] | None = None
     players: dict[str, list[str]] = field(default_factory=lambda: {})
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        date = self.dates[0] if self.dates else "Unknown"
+        return f"MatchInfo({self.match_id}: {self.teams[0]} vs {self.teams[1]}, {self.format.value}, {date})"

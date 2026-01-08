@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -13,12 +12,13 @@ from pydantic import BaseModel
 
 from suksham_vachak.commentary import CommentaryEngine
 from suksham_vachak.context import ContextBuilder
+from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import CricsheetParser, EventType
 from suksham_vachak.personas import BENAUD, DOSHI, GREIG
 from suksham_vachak.tts import AudioFormat
 from suksham_vachak.tts.prosody import ProsodyController
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Check if LLM is available
 LLM_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -113,7 +113,7 @@ async def list_matches() -> list[dict[str, Any]]:
                 "file": json_file.name,
             })
         except Exception as e:
-            print(f"Failed to parse match {json_file}: {e}")
+            logger.warning("Failed to parse match", file=json_file.name, error=str(e))
             continue
 
     return matches
@@ -181,7 +181,7 @@ async def get_key_moments(match_id: str) -> list[dict[str, Any]]:
 
                 moments.append(moment)
         except Exception as e:
-            print(f"Failed to get moments from innings {innings_num}: {e}")
+            logger.warning("Failed to get moments from innings", innings=innings_num, error=str(e))
             continue
 
     return moments
@@ -255,7 +255,7 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
             if target_event:
                 break
         except Exception as e:
-            logger.warning("Failed to parse innings %d: %s", innings_num, e)
+            logger.warning("Failed to parse innings", innings=innings_num, error=str(e))
             continue
 
     if not target_event:
@@ -345,9 +345,9 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
             audio_base64 = base64.b64encode(result.audio_bytes).decode("utf-8")
             duration = result.duration_seconds or 0.0
 
-    except Exception as e:
+    except Exception:
         # Audio generation failed, continue without audio
-        print(f"Audio generation failed: {e}")
+        logger.exception("Audio generation failed", persona=request.persona_id)
 
     return CommentaryResponse(
         text=text,

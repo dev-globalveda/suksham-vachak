@@ -14,6 +14,7 @@ packages = [
 python = ">=3.10,<4.0"
 
 # Phase 1: Core dependencies
+structlog = "^24.0.0"        # Structured logging
 openai = "^1.0"              # LLM API (works with Foundry Local, Ollama, OpenAI)
 anthropic = "^0.40.0"        # Claude API
 fastapi = "^0.115.0"         # API framework
@@ -123,6 +124,8 @@ ignore = [
 "suksham_vachak/tts/*.py" = ["TRY300", "TRY301", "SIM108"]
 # RAG module uses descriptive error messages
 "suksham_vachak/rag/*.py" = ["TRY003"]
+# Middleware uses try/except with return inside try
+"suksham_vachak/api/middleware.py" = ["TRY300"]
 
 [tool.ruff.format]
 preview = true

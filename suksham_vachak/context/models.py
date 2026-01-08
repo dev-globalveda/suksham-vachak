@@ -75,6 +75,13 @@ class BatterContext:
         """Batter struggling (low SR after 15+ balls)."""
         return self.balls_faced >= 15 and self.strike_rate < 60
 
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        status = "new" if self.is_new_batter else "settled" if self.is_settled else "batting"
+        return (
+            f"BatterContext({self.name}: {self.runs_scored}({self.balls_faced}), SR {self.strike_rate:.1f}, {status})"
+        )
+
 
 @dataclass
 class BowlerContext:
@@ -152,6 +159,19 @@ class RecentEvents:
         """Lots happening recently."""
         return self.boundaries_in_last_5_overs >= 4 or self.wickets_in_last_5_overs >= 2
 
+    def __len__(self) -> int:
+        """Number of recent events."""
+        return len(self.last_6_balls)
+
+    def __iter__(self):
+        """Iterate over recent events."""
+        return iter(self.last_6_balls)
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        action = "action-packed" if self.is_action_packed else "quiet" if self.is_quiet_period else "normal"
+        return f"RecentEvents({len(self.last_6_balls)} balls, {self.runs_in_last_5_overs} runs in 5 ov, {action})"
+
 
 @dataclass
 class MatchSituation:
@@ -192,6 +212,11 @@ class MatchSituation:
     def wickets_in_hand(self) -> int:
         """Wickets remaining."""
         return 10 - self.total_wickets
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        chase_info = f", need {self.runs_required}" if self.runs_required else ""
+        return f"MatchSituation({self.batting_team} {self.score_string}, {self.phase.value}{chase_info})"
 
 
 @dataclass
@@ -353,3 +378,10 @@ class RichContext:
         if event.runs_total == 0:
             return "Dot ball"
         return f"{event.runs_total} run(s)"
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        return (
+            f"RichContext({self.match.batting_team} {self.match.score_string}, "
+            f"{self.batter.name} vs {self.bowler.name}, {self.pressure.value})"
+        )

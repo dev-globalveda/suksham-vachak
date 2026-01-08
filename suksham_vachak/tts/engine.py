@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import ClassVar
 
 from suksham_vachak.commentary import Commentary
+from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import EventType
 from suksham_vachak.personas import Persona
 
 from .base import AudioFormat, TTSError, TTSProvider, TTSResult
 from .prosody import ProsodyController
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -91,6 +94,20 @@ class TTSEngine:
         if self.config.enable_cache:
             self._cache_dir = Path(self.config.cache_dir)
             self._cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def __enter__(self) -> "TTSEngine":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager, optionally clearing cache."""
+        # Clear providers (they may hold connections)
+        self._providers.clear()
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        cache_status = f"cache={self._cache_dir}" if self._cache_dir else "no-cache"
+        return f"TTSEngine(provider={self.config.provider}, {cache_status})"
 
     def _get_provider(self, provider_name: str) -> TTSProvider:
         """Get or create a TTS provider instance."""

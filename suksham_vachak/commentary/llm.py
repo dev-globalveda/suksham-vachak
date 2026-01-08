@@ -6,6 +6,10 @@ from enum import Enum
 
 from anthropic import Anthropic
 
+from suksham_vachak.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class ClaudeModel(Enum):
     """Available Claude models."""

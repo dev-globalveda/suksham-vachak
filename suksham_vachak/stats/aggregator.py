@@ -6,11 +6,14 @@ from collections import defaultdict
 from collections.abc import Iterator
 from pathlib import Path
 
+from suksham_vachak.logging import get_logger
 from suksham_vachak.parser.cricsheet import CricsheetParser
 from suksham_vachak.parser.events import CricketEvent, EventType
 
 from .models import MatchupRecord
 from .normalize import normalize_display_name, normalize_player_id
+
+logger = get_logger(__name__)
 
 
 class MatchupAccumulator:
@@ -186,7 +189,7 @@ class StatsAggregator:
                 if records:
                     yield records
             except Exception as e:
-                print(f"Error processing {json_file}: {e}")
+                logger.warning("Error processing match file", file=json_file.name, error=str(e))
                 continue
 
     def count_matches(self) -> int:

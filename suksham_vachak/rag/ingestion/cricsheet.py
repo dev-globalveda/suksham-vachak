@@ -9,10 +9,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
+from suksham_vachak.logging import get_logger
 from suksham_vachak.parser.cricsheet import CricsheetParser
 from suksham_vachak.parser.events import CricketEvent, EventType, MatchInfo
 
 from ..models import CricketMoment, MomentSource, MomentType
+
+logger = get_logger(__name__)
 
 
 class CricsheetIngester:
@@ -82,7 +85,7 @@ class CricsheetIngester:
                 yield from moments
             except Exception as e:
                 # Log error but continue with other files
-                print(f"Error parsing {json_file}: {e}")
+                logger.warning("Error parsing match file", file=json_file.name, error=str(e))
                 continue
 
     def _create_wicket_moment(

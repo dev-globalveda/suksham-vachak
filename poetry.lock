@@ -437,7 +437,7 @@ files = [
     {file = "charset_normalizer-3.4.4-py3-none-any.whl", hash = "sha256:7a32c560861a02ff789ad905a2fe94e3f840803362c84fecf1851cb4cf3dc37f"},
     {file = "charset_normalizer-3.4.4.tar.gz", hash = "sha256:94537985111c35f28720e43603b8e7b43a6ecfb2ce1d3058bbe955b73404e21a"},
 ]
-markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"rag\""}
+markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"tts-elevenlabs\" or extra == \"rag\""}
 
 [[package]]
 name = "chroma-hnswlib"
@@ -722,6 +722,30 @@ files = [
     {file = "durationpy-0.10-py3-none-any.whl", hash = "sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286"},
     {file = "durationpy-0.10.tar.gz", hash = "sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba"},
 ]
+
+[[package]]
+name = "elevenlabs"
+version = "1.59.0"
+description = ""
+optional = true
+python-versions = "<4.0,>=3.8"
+groups = ["main"]
+markers = "extra == \"tts\" or extra == \"tts-elevenlabs\""
+files = [
+    {file = "elevenlabs-1.59.0-py3-none-any.whl", hash = "sha256:468145db81a0bc867708b4a8619699f75583e9481b395ec1339d0b443da771ed"},
+    {file = "elevenlabs-1.59.0.tar.gz", hash = "sha256:16e735bd594e86d415dd445d249c8cc28b09996cfd627fbc10102c0a84698859"},
+]
+
+[package.dependencies]
+httpx = ">=0.21.2"
+pydantic = ">=1.9.2"
+pydantic-core = ">=2.18.2,<3.0.0"
+requests = ">=2.20"
+typing_extensions = ">=4.0.0"
+websockets = ">=11.0"
+
+[package.extras]
+pyaudio = ["pyaudio (>=0.2.14)"]
 
 [[package]]
 name = "exceptiongroup"
@@ -3164,7 +3188,7 @@ files = [
     {file = "requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c"},
     {file = "requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422"},
 ]
-markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"rag\""}
+markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"tts-elevenlabs\" or extra == \"rag\""}
 
 [package.dependencies]
 certifi = ">=2017.4.17"
@@ -3316,6 +3340,24 @@ anyio = ">=3.6.2,<5"
 
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
+
+[[package]]
+name = "structlog"
+version = "24.4.0"
+description = "Structured Logging for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "structlog-24.4.0-py3-none-any.whl", hash = "sha256:597f61e80a91cc0749a9fd2a098ed76715a1c8a01f73e336b746504d1aad7610"},
+    {file = "structlog-24.4.0.tar.gz", hash = "sha256:b27bfecede327a6d2da5fbc96bd859f114ecc398a6389d664f62085ee7ae6fc4"},
+]
+
+[package.extras]
+dev = ["freezegun (>=0.2.8)", "mypy (>=1.4)", "pretend", "pytest (>=6.0)", "pytest-asyncio (>=0.17)", "rich", "simplejson", "twisted"]
+docs = ["cogapp", "furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-mermaid", "sphinxext-opengraph", "twisted"]
+tests = ["freezegun (>=0.2.8)", "pretend", "pytest (>=6.0)", "pytest-asyncio (>=0.17)", "simplejson"]
+typing = ["mypy (>=1.4)", "rich", "twisted"]
 
 [[package]]
 name = "sympy"
@@ -3576,7 +3618,7 @@ files = [
     {file = "urllib3-2.2.3-py3-none-any.whl", hash = "sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac"},
     {file = "urllib3-2.2.3.tar.gz", hash = "sha256:e7d814a81dad81e6caf2ec9fdedb284ecc9c73076b62654547cc64ccdcae26e9"},
 ]
-markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"rag\""}
+markers = {main = "extra == \"tts\" or extra == \"tts-google\" or extra == \"tts-azure\" or extra == \"tts-elevenlabs\" or extra == \"rag\""}
 
 [package.extras]
 brotli = ["brotli (>=1.0.9) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=0.8.0) ; platform_python_implementation != \"CPython\""]
@@ -4080,11 +4122,12 @@ type = ["pytest-mypy"]
 
 [extras]
 rag = ["chromadb"]
-tts = ["azure-cognitiveservices-speech", "google-cloud-texttospeech"]
+tts = ["azure-cognitiveservices-speech", "elevenlabs", "google-cloud-texttospeech"]
 tts-azure = ["azure-cognitiveservices-speech"]
+tts-elevenlabs = ["elevenlabs"]
 tts-google = ["google-cloud-texttospeech"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "b2110460ce08ebbfecc721d08b8f0591f03a501c418b755bf2c2a034f6e586ee"
+content-hash = "79f4f1e234083114d23b8cc7dec22142dedb95349f21408534ee5aee99a50986"

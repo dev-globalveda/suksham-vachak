@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from suksham_vachak.logging import get_logger
+
 from .models import (
     BatterContext,
     BowlerContext,
@@ -15,6 +17,8 @@ from .models import (
 )
 from .narrative import NarrativeTracker
 from .pressure import PressureCalculator
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from suksham_vachak.parser import CricketEvent, MatchInfo

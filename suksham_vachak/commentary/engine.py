@@ -6,11 +6,14 @@ import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
+from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import CricketEvent, EventType
 from suksham_vachak.personas import Persona
 
 from .llm import LLMClient, LLMResponse
 from .prompts import build_event_prompt, build_rich_context_prompt, build_system_prompt
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from suksham_vachak.context import ContextBuilder, RichContext
@@ -207,17 +210,26 @@ class CommentaryEngine:
             Commentary object with generated text.
         """
         lang = language or self.default_language
+        log = logger.bind(
+            event_id=event.event_id,
+            event_type=event.event_type.value,
+            persona=persona.name,
+            language=lang,
+        )
 
         # Build rich context if context builder is available
         rich_context: RichContext | None = None
         if self.context_builder is not None:
             rich_context = self.context_builder.build(event)
+            log.debug("Built rich context for event")
 
         # Try LLM first if enabled
         if self.use_llm and self.llm_client is not None:
+            log.debug("Generating commentary with LLM")
             return self._generate_with_llm(event, persona, lang, rich_context)
 
         # Fall back to template-based generation
+        log.debug("Generating commentary with templates")
         return self._generate_with_templates(event, persona, lang, rich_context)
 
     def _generate_with_llm(

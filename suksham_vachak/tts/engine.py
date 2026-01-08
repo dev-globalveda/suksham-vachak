@@ -32,7 +32,7 @@ class TTSConfig:
     """Configuration for TTS Engine."""
 
     # Provider settings
-    provider: str = "google"  # "google" or "azure"
+    provider: str = "google"  # "google", "azure", or "elevenlabs"
     fallback_provider: str | None = "azure"  # Fallback if primary fails
 
     # Audio settings
@@ -69,6 +69,12 @@ class TTSEngine:
             "Harsha Bhogle": "en-IN-PrabhatNeural",
             "Sushil Doshi": "hi-IN-MadhurNeural",
         },
+        "elevenlabs": {
+            "Richie Benaud": "pNInz6obpgDQGcFmaJgB",  # Adam - deep, mature
+            "Tony Greig": "ErXwobaYiN019PkySvjV",  # Antoni - energetic
+            "Harsha Bhogle": "VR6AewLTigWG4xSOukaG",  # Arnold - articulate
+            "Sushil Doshi": "pNInz6obpgDQGcFmaJgB",  # Adam (multilingual)
+        },
     }
 
     def __init__(self, config: TTSConfig | None = None) -> None:
@@ -97,6 +103,10 @@ class TTSEngine:
                 from .azure import AzureTTSProvider
 
                 self._providers[provider_name] = AzureTTSProvider()
+            elif provider_name == "elevenlabs":
+                from .elevenlabs import ElevenLabsTTSProvider
+
+                self._providers[provider_name] = ElevenLabsTTSProvider()
             else:
                 msg = f"Unknown TTS provider: {provider_name}"
                 raise TTSError(msg)
@@ -123,6 +133,8 @@ class TTSEngine:
         # Ultimate fallback
         if provider_name == "google":
             return "en-US-Wavenet-D"
+        elif provider_name == "elevenlabs":
+            return "pNInz6obpgDQGcFmaJgB"  # Adam
         else:
             return "en-US-GuyNeural"
 
@@ -391,7 +403,7 @@ def create_tts_engine(
     """Convenience function to create a TTS engine.
 
     Args:
-        provider: Primary TTS provider ('google' or 'azure').
+        provider: Primary TTS provider ('google', 'azure', or 'elevenlabs').
         fallback_provider: Fallback provider if primary fails.
         cache_enabled: Whether to enable audio caching.
         cache_dir: Directory for cached audio files.

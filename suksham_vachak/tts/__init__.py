@@ -4,8 +4,9 @@ This module provides TTS capabilities with prosody control for
 natural-sounding cricket commentary.
 
 Providers:
-- Google Cloud TTS (primary): High-quality WaveNet voices
-- Azure Cognitive Services (fallback): Neural voices
+- Google Cloud TTS: High-quality WaveNet voices
+- Azure Cognitive Services: Neural voices
+- ElevenLabs: Premium voice cloning and synthesis
 
 Example usage:
     from suksham_vachak.tts import TTSEngine, TTSConfig, AudioFormat
@@ -90,6 +91,13 @@ def get_available_providers() -> list[str]:
         import azure.cognitiveservices.speech  # noqa: F401
 
         providers.append("azure")
+    except ImportError:
+        pass
+
+    try:
+        from elevenlabs import ElevenLabs  # noqa: F401
+
+        providers.append("elevenlabs")
     except ImportError:
         pass
 

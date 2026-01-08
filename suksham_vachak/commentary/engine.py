@@ -10,8 +10,8 @@ from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import CricketEvent, EventType
 from suksham_vachak.personas import Persona
 
-from .llm import LLMClient, LLMResponse
 from .prompts import build_event_prompt, build_rich_context_prompt, build_system_prompt
+from .providers import BaseLLMProvider, LLMResponse, create_llm_provider
 
 logger = get_logger(__name__)
 
@@ -165,7 +165,8 @@ class CommentaryEngine:
         self,
         default_language: str = "en",
         use_llm: bool = False,
-        llm_client: LLMClient | None = None,
+        llm_client: BaseLLMProvider | None = None,
+        llm_provider: str = "auto",
         context_builder: ContextBuilder | None = None,
     ) -> None:
         """Initialize the commentary engine.
@@ -173,25 +174,43 @@ class CommentaryEngine:
         Args:
             default_language: Default language for commentary generation.
             use_llm: Whether to use LLM for generation. Falls back to templates if False.
-            llm_client: Pre-configured LLM client. If use_llm=True and not provided,
-                        a new client will be created using ANTHROPIC_API_KEY env var.
+            llm_client: Pre-configured LLM provider. If use_llm=True and not provided,
+                        creates one based on llm_provider setting.
+            llm_provider: Which LLM provider to use when auto-creating:
+                         - "auto": Try Ollama first, fall back to Claude
+                         - "ollama": Use local Ollama server
+                         - "claude": Use Anthropic Claude API
             context_builder: Optional ContextBuilder for rich context generation.
                             When provided, LLM prompts include enhanced situational context.
         """
         self.default_language = default_language
         self.use_llm = use_llm
-        self._llm_client = llm_client
+        self._llm_provider = llm_client
+        self._llm_provider_name = llm_provider
         self.context_builder = context_builder
 
         # Cache system prompts per persona to avoid rebuilding
         self._system_prompt_cache: dict[str, str] = {}
 
     @property
-    def llm_client(self) -> LLMClient | None:
-        """Get or create the LLM client."""
-        if self.use_llm and self._llm_client is None:
-            self._llm_client = LLMClient()
-        return self._llm_client
+    def llm_client(self) -> BaseLLMProvider | None:
+        """Get or create the LLM provider.
+
+        Uses auto-detection by default: tries Ollama first, falls back to Claude.
+        """
+        if self.use_llm and self._llm_provider is None:
+            try:
+                self._llm_provider = create_llm_provider(self._llm_provider_name)  # type: ignore[arg-type]
+                logger.info(
+                    "Created LLM provider",
+                    provider=self._llm_provider.provider_name,
+                    model=self._llm_provider.model_name,
+                )
+            except ValueError as e:
+                logger.warning("Failed to create LLM provider, using templates", error=str(e))
+                self.use_llm = False
+                return None
+        return self._llm_provider
 
     def generate(
         self,

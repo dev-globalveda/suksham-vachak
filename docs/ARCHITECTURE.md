@@ -1,8 +1,8 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 5.2
+> **Document Version**: 5.3
 > **Last Updated**: January 8, 2025
-> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions + Observability + Auth Roadmap)
+> **Status**: Phases 1-4 Complete + Local LLM (Ollama) Support
 
 ---
 
@@ -569,6 +569,154 @@ Phase 3 (Production): FastAPI OAuth2 + JWT
 | CORS              | Strict origin allowlist in FastAPI     |
 | Secrets           | Environment variables, never in code   |
 | Audit logging     | Already have correlation IDs in logs   |
+
+---
+
+## Edge Deployment: Raspberry Pi 5
+
+Suksham Vachak supports local LLM inference on Raspberry Pi 5 for offline/edge deployment.
+
+### Hardware Requirements
+
+| Component    | Minimum    | Recommended       |
+| ------------ | ---------- | ----------------- |
+| Raspberry Pi | Pi 5 (8GB) | Pi 5 (16GB)       |
+| Storage      | 64GB SD    | 256GB+ NVMe       |
+| Cooling      | Active fan | Active + heatsink |
+
+### Model Recommendations for Pi 5 (16GB)
+
+| Model            | Quantization | RAM Used | Speed       | Use Case                   |
+| ---------------- | ------------ | -------- | ----------- | -------------------------- |
+| **Qwen2.5 7B**   | Q4_K_M       | ~5GB     | 6-8 tok/s   | Best quality, multilingual |
+| **Llama 3.2 3B** | Q6_K         | ~3GB     | 10-15 tok/s | Faster, English-focused    |
+| **Phi-3.5-mini** | Q4_K_M       | ~3GB     | 12-15 tok/s | Best speed/quality ratio   |
+
+### Setup Instructions
+
+```bash
+# 1. Install Ollama on Pi 5
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Start Ollama server
+ollama serve &
+
+# 3. Pull recommended model
+ollama pull qwen2.5:7b
+
+# 4. Verify installation
+curl http://localhost:11434/api/tags
+
+# 5. Start Suksham Vachak (auto-detects Ollama)
+poetry run uvicorn suksham_vachak.api.app:app --host 0.0.0.0 --port 8000
+```
+
+### Architecture on Pi 5
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         RASPBERRY PI 5 (16GB)                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │  Suksham Vachak API (FastAPI)                                       ││
+│  │  - Auto-detects Ollama at startup                                   ││
+│  │  - Falls back to Claude if Ollama unavailable                       ││
+│  │  - GET /api/llm/status shows available providers                    ││
+│  └───────────────────────────┬─────────────────────────────────────────┘│
+│                              │                                           │
+│                              ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │  Ollama Server (localhost:11434)                                    ││
+│  │  - Qwen2.5 7B Q4_K_M (~5GB)                                         ││
+│  │  - OpenAI-compatible API                                            ││
+│  │  - GPU offload via Vulkan (partial)                                 ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                          │
+│  Memory Usage:                                                           │
+│  ├── Ollama + Model: ~6GB                                               │
+│  ├── Python + FastAPI: ~500MB                                           │
+│  ├── OS: ~1GB                                                           │
+│  └── Available: ~8GB headroom                                           │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### API Usage
+
+```bash
+# Check LLM status
+curl http://pi5.local:8000/api/llm/status
+
+# Generate commentary with local LLM (auto-detected)
+curl -X POST http://pi5.local:8000/api/commentary \
+  -H "Content-Type: application/json" \
+  -d '{
+    "match_id": "1000851",
+    "ball_number": "0.1",
+    "persona_id": "benaud",
+    "llm_provider": "ollama"
+  }'
+
+# Force Claude (if API key is set)
+curl -X POST http://pi5.local:8000/api/commentary \
+  -d '{"match_id": "1000851", "ball_number": "0.1", "persona_id": "benaud", "llm_provider": "claude"}'
+```
+
+### LLM Provider Priority
+
+The system auto-detects providers in this order:
+
+1. **Ollama** (preferred for edge) - Check `localhost:11434`
+2. **Claude** (cloud fallback) - Requires `ANTHROPIC_API_KEY`
+
+```python
+# In code
+from suksham_vachak.commentary import create_llm_provider
+
+# Auto-detect (tries Ollama first)
+provider = create_llm_provider("auto")
+
+# Force specific provider
+provider = create_llm_provider("ollama", model="qwen2.5:7b")
+provider = create_llm_provider("claude", model="haiku")
+```
+
+### Performance Tuning
+
+```bash
+# Increase Ollama context size (for longer commentaries)
+OLLAMA_NUM_CTX=4096 ollama serve
+
+# Pin to performance cores (Pi 5 has 4 Cortex-A76)
+taskset -c 0-3 ollama serve
+
+# Monitor inference
+watch -n 1 'curl -s localhost:11434/api/ps | jq'
+```
+
+### Fine-tuning for Cricket (Future)
+
+```
+Phase 1: Collect cricket commentary corpus
+         ├── Cricsheet JSON → structured events
+         ├── ESPNcricinfo commentary text
+         └── Historical match reports
+
+Phase 2: Create training data
+         ├── Input: Event + Context JSON
+         └── Output: Persona-style commentary
+
+Phase 3: QLoRA fine-tuning (cloud GPU)
+         ├── Base: Qwen2.5 7B
+         ├── Adapter: ~100MB
+         └── Training: ~4h on A100
+
+Phase 4: Deploy to Pi 5
+         ├── Merge adapter into base
+         ├── Quantize to Q4_K_M
+         └── ~5GB final model
+```
 
 ---
 
@@ -1937,19 +2085,20 @@ Every implementation must pass the Benaud Test:
 
 ## Document History
 
-| Version | Date       | Author | Changes                                                                |
-| ------- | ---------- | ------ | ---------------------------------------------------------------------- |
-| 1.0     | 2025-01-01 | Team   | Initial architecture                                                   |
-| 2.0     | 2025-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                             |
-| 2.1     | 2025-01-05 | Team   | Added D2 diagram and code mapping table                                |
-| 3.0     | 2025-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis |
-| 3.1     | 2025-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation            |
-| 3.2     | 2025-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide           |
-| 3.3     | 2025-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
-| 4.0     | 2025-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
-| 5.0     | 2025-01-08 | Team   | Stats Extensions (PhaseEngine, FormEngine), C4 Mermaid diagrams        |
-| 5.1     | 2025-01-08 | Team   | Observability & APM: structured logging, correlation IDs, APM guide    |
-| 5.2     | 2025-01-08 | Team   | Future Auth section: Cloudflare Access, FastAPI OAuth2, auth providers |
+| Version | Date       | Author | Changes                                                                   |
+| ------- | ---------- | ------ | ------------------------------------------------------------------------- |
+| 1.0     | 2025-01-01 | Team   | Initial architecture                                                      |
+| 2.0     | 2025-01-05 | Team   | Phase 1 & 2 complete, Context Builder docs                                |
+| 2.1     | 2025-01-05 | Team   | Added D2 diagram and code mapping table                                   |
+| 3.0     | 2025-01-06 | Team   | Phase 3 RAG complete, TTS streaming architecture, data growth analysis    |
+| 3.1     | 2025-01-06 | Team   | WebTransport vs WebSocket analysis, HOL blocking mitigation               |
+| 3.2     | 2025-01-06 | Team   | WebTransport prerequisites, OSI layers, infrastructure guide              |
+| 3.3     | 2025-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming           |
+| 4.0     | 2025-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)              |
+| 5.0     | 2025-01-08 | Team   | Stats Extensions (PhaseEngine, FormEngine), C4 Mermaid diagrams           |
+| 5.1     | 2025-01-08 | Team   | Observability & APM: structured logging, correlation IDs, APM guide       |
+| 5.2     | 2025-01-08 | Team   | Future Auth section: Cloudflare Access, FastAPI OAuth2, auth providers    |
+| 5.3     | 2025-01-08 | Team   | Local LLM support: Ollama provider, Pi 5 deployment guide, auto-detection |
 
 ---
 

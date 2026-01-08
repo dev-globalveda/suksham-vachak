@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from suksham_vachak.commentary import CommentaryEngine
+from suksham_vachak.commentary import CommentaryEngine, OllamaProvider
 from suksham_vachak.context import ContextBuilder
 from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import CricsheetParser, EventType
@@ -20,8 +20,27 @@ from suksham_vachak.tts.prosody import ProsodyController
 
 logger = get_logger(__name__)
 
-# Check if LLM is available
-LLM_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+def _check_llm_availability() -> dict[str, bool]:
+    """Check which LLM providers are available."""
+    availability = {
+        "claude": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "ollama": False,
+    }
+
+    # Check if Ollama is running
+    try:
+        ollama = OllamaProvider()
+        availability["ollama"] = ollama.is_available()
+    except Exception as e:
+        logger.debug("Ollama availability check failed", error=str(e))
+
+    return availability
+
+
+# Check LLM availability at startup
+LLM_AVAILABILITY = _check_llm_availability()
+LLM_AVAILABLE = LLM_AVAILABILITY["claude"] or LLM_AVAILABILITY["ollama"]
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -80,6 +99,7 @@ class CommentaryRequest(BaseModel):
     persona_id: str
     language: str = "en"  # "en" or "hi"
     use_llm: bool = True  # Use LLM for generation (falls back to templates if unavailable)
+    llm_provider: str = "auto"  # "auto", "claude", or "ollama"
 
 
 class CommentaryResponse(BaseModel):
@@ -273,8 +293,12 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
     # Determine if we should use LLM
     use_llm = request.use_llm and LLM_AVAILABLE
 
-    # Generate commentary with context
-    engine = CommentaryEngine(use_llm=use_llm, context_builder=context_builder)
+    # Generate commentary with context (supports auto-detection of Ollama/Claude)
+    engine = CommentaryEngine(
+        use_llm=use_llm,
+        llm_provider=request.llm_provider,
+        context_builder=context_builder,
+    )
     commentary = engine.generate(target_event, persona)
 
     # Get the text - LLM generates in persona's language naturally
@@ -372,6 +396,59 @@ def _event_type_to_emotion(event_type: EventType) -> str:
 
 
 @router.get("/health")
-async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "ok", "service": "suksham-vachak"}
+async def health_check() -> dict[str, Any]:
+    """Health check endpoint with LLM status."""
+    # Refresh LLM availability
+    llm_status = _check_llm_availability()
+    return {
+        "status": "ok",
+        "service": "suksham-vachak",
+        "llm": {
+            "available": llm_status["claude"] or llm_status["ollama"],
+            "claude": llm_status["claude"],
+            "ollama": llm_status["ollama"],
+        },
+    }
+
+
+@router.get("/llm/status")
+async def llm_status() -> dict[str, Any]:
+    """Get detailed LLM provider status."""
+    status = _check_llm_availability()
+
+    providers = []
+    if status["ollama"]:
+        try:
+            ollama = OllamaProvider()
+            models = ollama.list_models()
+            providers.append({
+                "name": "ollama",
+                "available": True,
+                "models": models,
+                "default_model": "qwen2.5:7b",
+            })
+        except Exception as e:
+            providers.append({
+                "name": "ollama",
+                "available": False,
+                "error": str(e),
+            })
+    else:
+        providers.append({
+            "name": "ollama",
+            "available": False,
+            "hint": "Start with: ollama serve && ollama pull qwen2.5:7b",
+        })
+
+    providers.append({
+        "name": "claude",
+        "available": status["claude"],
+        "models": ["haiku", "sonnet", "opus"] if status["claude"] else [],
+        "hint": None if status["claude"] else "Set ANTHROPIC_API_KEY environment variable",
+    })
+
+    return {
+        "any_available": status["claude"] or status["ollama"],
+        "providers": providers,
+        "recommended": "ollama" if status["ollama"] else "claude" if status["claude"] else None,
+    }

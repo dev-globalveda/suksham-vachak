@@ -1,0 +1,112 @@
+"""Claude (Anthropic) LLM provider."""
+
+import os
+from enum import Enum
+
+from anthropic import Anthropic
+
+from suksham_vachak.logging import get_logger
+
+from .base import BaseLLMProvider, LLMResponse
+
+logger = get_logger(__name__)
+
+
+class ClaudeModel(Enum):
+    """Available Claude models."""
+
+    # Fast and cheap - use for development and testing
+    HAIKU = "claude-3-haiku-20240307"
+
+    # Balanced - good for production
+    SONNET = "claude-sonnet-4-20250514"
+
+    # Best quality - use for quality checks
+    OPUS = "claude-opus-4-20250514"
+
+
+class ClaudeProvider(BaseLLMProvider):
+    """Claude API provider via Anthropic SDK.
+
+    Uses Haiku by default for speed/cost during development.
+    Switch to Sonnet for production quality.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: ClaudeModel = ClaudeModel.HAIKU,
+    ) -> None:
+        """Initialize the Claude provider.
+
+        Args:
+            api_key: Anthropic API key. If not provided, reads from ANTHROPIC_API_KEY env var.
+            model: Claude model to use. Defaults to Haiku for speed/cost.
+        """
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            msg = "ANTHROPIC_API_KEY not found. Set env var or pass api_key."
+            raise ValueError(msg)
+
+        self.model = model
+        self.client = Anthropic(api_key=self.api_key)
+        logger.info("Initialized Claude provider", model=model.value)
+
+    @property
+    def provider_name(self) -> str:
+        """Provider name."""
+        return "claude"
+
+    @property
+    def model_name(self) -> str:
+        """Model name."""
+        return self.model.value
+
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 50,
+    ) -> LLMResponse:
+        """Generate a completion using Claude.
+
+        Args:
+            system_prompt: The system prompt establishing the AI's role.
+            user_prompt: The user message/prompt.
+            max_tokens: Maximum tokens in response. Keep low for minimal personas.
+
+        Returns:
+            LLMResponse with the generated text and token usage.
+        """
+        message = self.client.messages.create(
+            model=self.model.value,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+
+        # Extract text from response
+        text = ""
+        for block in message.content:
+            if block.type == "text":
+                text = block.text
+                break
+
+        return LLMResponse(
+            text=text.strip(),
+            model=self.model.value,
+            input_tokens=message.usage.input_tokens,
+            output_tokens=message.usage.output_tokens,
+            provider=self.provider_name,
+        )
+
+    def set_model(self, model: ClaudeModel) -> None:
+        """Switch to a different model.
+
+        Args:
+            model: The Claude model to use.
+        """
+        self.model = model
+        logger.info("Switched Claude model", model=model.value)

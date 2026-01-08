@@ -1,8 +1,8 @@
 # Suksham Vachak - System Architecture
 
-> **Document Version**: 5.0
+> **Document Version**: 5.1
 > **Last Updated**: January 8, 2025
-> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions)
+> **Status**: Phases 1, 2, 3 & 4 Complete (including Stats Extensions + Observability)
 
 ---
 
@@ -247,6 +247,233 @@ graph LR
 - **Acts** with persona-appropriate restraint (Benaud)
 
 > For a deep dive into the agentic architecture, see [AGENTIC.md](AGENTIC.md).
+
+---
+
+## Observability & APM
+
+Suksham Vachak includes a production-ready observability stack for monitoring, debugging, and performance analysis.
+
+### Logging Infrastructure
+
+```mermaid
+graph LR
+    subgraph Application
+        API[FastAPI Routes]
+        MW[Middleware]
+        CE[Commentary Engine]
+        TTS[TTS Engine]
+        CTX[Context Builder]
+    end
+
+    subgraph Logging [Structured Logging - structlog]
+        CID[Correlation ID]
+        JSON[JSON Formatter]
+        Console[Console Renderer]
+    end
+
+    subgraph Output [Log Destinations]
+        Stdout[stdout]
+        APM[APM Tools]
+        Aggregator[Log Aggregator]
+    end
+
+    API --> MW
+    MW --> CID
+    CE --> JSON
+    TTS --> JSON
+    CTX --> JSON
+    CID --> JSON
+    JSON --> |Production| Stdout
+    Console --> |Development| Stdout
+    Stdout --> APM
+    Stdout --> Aggregator
+
+    style CID fill:#e1f5fe
+    style JSON fill:#fff3e0
+```
+
+#### Key Components
+
+| Component                      | File                               | Purpose                              |
+| ------------------------------ | ---------------------------------- | ------------------------------------ |
+| **Logging Config**             | `suksham_vachak/logging.py`        | Centralized structlog configuration  |
+| **Correlation ID Middleware**  | `suksham_vachak/api/middleware.py` | Request tracing across services      |
+| **Request Logging Middleware** | `suksham_vachak/api/middleware.py` | Timing, status codes, error tracking |
+
+#### Environment Variables
+
+```bash
+# Logging Mode
+LOG_ENV=production          # "production" for JSON, else pretty console
+
+# Log Level
+LOG_LEVEL=INFO              # DEBUG, INFO, WARNING, ERROR
+
+# Per-Module Levels (JSON)
+LOG_MODULE_LEVELS='{"suksham_vachak.api": "DEBUG", "suksham_vachak.tts": "WARNING"}'
+```
+
+#### Log Output Examples
+
+**Development Mode** (pretty console):
+
+```
+14:32:15 [info     ] Request completed        correlation_id=a1b2c3d4 duration_ms=145.23 method=POST module=api.middleware path=/api/commentary status=200
+14:32:15 [debug    ] Built rich context       correlation_id=a1b2c3d4 event_id=evt_123 module=commentary.engine
+```
+
+**Production Mode** (JSON for log aggregation):
+
+```json
+{
+  "event": "Request completed",
+  "level": "info",
+  "timestamp": "2025-01-08T14:32:15.123Z",
+  "correlation_id": "a1b2c3d4",
+  "duration_ms": 145.23,
+  "method": "POST",
+  "path": "/api/commentary",
+  "status": 200,
+  "module": "api.middleware"
+}
+```
+
+### APM Integration
+
+With structured logging and correlation IDs in place, APM tools integrate seamlessly:
+
+| APM Tool           | Integration Method            | Best For                                           |
+| ------------------ | ----------------------------- | -------------------------------------------------- |
+| **Datadog**        | `ddtrace` + JSON logs         | Full-stack observability, APM + logs + metrics     |
+| **New Relic**      | Python agent + log forwarding | Traditional APM, synthetic monitoring              |
+| **Sentry**         | `sentry-sdk`                  | Error tracking, performance monitoring             |
+| **Honeycomb**      | Structured events via logs    | High-cardinality debugging, distributed tracing    |
+| **OpenTelemetry**  | `opentelemetry-sdk`           | Vendor-neutral tracing, correlation ID propagation |
+| **AWS CloudWatch** | JSON logs + X-Ray             | AWS-native, serverless deployments                 |
+| **Grafana + Loki** | Log aggregation               | Self-hosted, Prometheus ecosystem                  |
+
+#### Datadog Integration Example
+
+```python
+# Install: pip install ddtrace
+# Run: DD_SERVICE=suksham-vachak ddtrace-run uvicorn suksham_vachak.api.app:app
+
+from ddtrace import tracer, patch_all
+patch_all()
+
+# Correlation IDs automatically propagate to Datadog traces
+# JSON logs are parsed and indexed automatically
+```
+
+#### Sentry Integration Example
+
+```python
+# Install: pip install sentry-sdk[fastapi]
+
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+sentry_sdk.init(
+    dsn="https://xxx@sentry.io/xxx",
+    integrations=[FastApiIntegration()],
+    traces_sample_rate=0.1,  # 10% of requests traced
+)
+
+# Errors are captured with correlation_id context
+```
+
+#### OpenTelemetry Example
+
+```python
+# Install: pip install opentelemetry-sdk opentelemetry-instrumentation-fastapi
+
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+FastAPIInstrumentor.instrument_app(app)
+
+# Correlation IDs can be propagated as trace context
+# Set trace ID from X-Correlation-ID header in middleware
+```
+
+### Metrics to Monitor
+
+| Category       | Metric                           | Source            | Alert Threshold        |
+| -------------- | -------------------------------- | ----------------- | ---------------------- |
+| **Latency**    | Request duration (p50, p95, p99) | Middleware        | p95 > 500ms            |
+| **Throughput** | Requests per second              | Middleware        | < 10 rps (low traffic) |
+| **Errors**     | 4xx/5xx rate                     | Middleware        | > 1% error rate        |
+| **LLM**        | Claude API latency               | Commentary Engine | p95 > 2s               |
+| **LLM**        | Token usage per request          | LLM Client        | > 500 tokens/request   |
+| **TTS**        | Synthesis duration               | TTS Engine        | p95 > 1s               |
+| **TTS**        | Cache hit rate                   | TTS Engine        | < 50% hit rate         |
+| **Context**    | Context build time               | Context Builder   | p95 > 100ms            |
+| **Stats**      | SQLite query time                | Stats Engine      | p95 > 50ms             |
+
+### Dashboard Recommendations
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  SUKSHAM VACHAK - PRODUCTION DASHBOARD                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
+│  │   RPS: 45   │  │ p95: 234ms  │  │ Errors: 0.2%│  │ Cache: 78%  │    │
+│  │   ↑ 12%     │  │   ↓ 5%      │  │   ↓ 0.1%    │  │   ↑ 3%      │    │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘    │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ Request Latency by Component                                        │ │
+│  │                                                                      │ │
+│  │  Context Build:  ████░░░░░░  25ms                                   │ │
+│  │  LLM (Claude):   ████████████████████████░░░░░░  180ms              │ │
+│  │  TTS Synthesis:  ████████░░░░░░░░░░░░░░░░  60ms                     │ │
+│  │  Total:          ████████████████████████████████  265ms            │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ Errors by Correlation ID (last 1h)                                  │ │
+│  │                                                                      │ │
+│  │  a1b2c3d4  POST /api/commentary  TTS timeout       14:32:15        │ │
+│  │  e5f6g7h8  POST /api/commentary  Claude rate limit 14:28:03        │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Correlation ID Flow
+
+The `X-Correlation-ID` header enables end-to-end request tracing:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Middleware
+    participant Commentary
+    participant Claude
+    participant TTS
+
+    Client->>Middleware: POST /api/commentary<br/>X-Correlation-ID: abc123
+    Note over Middleware: Set correlation_id=abc123<br/>in context variable
+
+    Middleware->>Commentary: generate()
+    Note over Commentary: logger.bind(correlation_id)<br/>logs include abc123
+
+    Commentary->>Claude: API call
+    Note over Claude: External call logged<br/>with abc123
+
+    Claude-->>Commentary: response
+    Commentary->>TTS: synthesize()
+    Note over TTS: TTS logs include abc123
+
+    TTS-->>Commentary: audio
+    Commentary-->>Middleware: response
+    Middleware-->>Client: 200 OK<br/>X-Correlation-ID: abc123
+
+    Note over Client,TTS: All logs searchable by<br/>correlation_id=abc123
+```
 
 ---
 
@@ -1483,6 +1710,7 @@ suksham-vachak/
 │   │   ├── base.py             # TTSProvider base
 │   │   ├── google.py           # Google Cloud TTS
 │   │   └── prosody.py          # SSML prosody control
+│   ├── logging.py              # Centralized structlog configuration
 │   ├── rag/                    # RAG Déjà Vu Engine
 │   │   ├── __init__.py
 │   │   ├── models.py           # CricketMoment, RetrievedMoment
@@ -1507,7 +1735,8 @@ suksham-vachak/
 │   │   └── cli.py              # Stats CLI (matchup, phase, form commands)
 │   └── api/
 │       ├── __init__.py
-│       ├── app.py              # FastAPI app
+│       ├── app.py              # FastAPI app with middleware
+│       ├── middleware.py       # Correlation ID + request logging
 │       └── routes.py           # API endpoints
 ├── frontend/                   # Next.js frontend
 │   └── src/
@@ -1624,6 +1853,7 @@ Every implementation must pass the Benaud Test:
 | 3.3     | 2025-01-06 | Team   | MoQ (Media over QUIC) as target architecture for live streaming        |
 | 4.0     | 2025-01-06 | Team   | Phase 4 Stats Engine complete (SQLite, player matchups, CLI)           |
 | 5.0     | 2025-01-08 | Team   | Stats Extensions (PhaseEngine, FormEngine), C4 Mermaid diagrams        |
+| 5.1     | 2025-01-08 | Team   | Observability & APM: structured logging, correlation IDs, APM guide    |
 
 ---
 

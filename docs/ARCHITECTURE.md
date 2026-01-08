@@ -180,6 +180,76 @@ sequenceDiagram
 
 ---
 
+## Agentic AI Architecture
+
+Suksham Vachak implements the **Agentic AI paradigm** — not just a model that responds, but a system that perceives, reasons, remembers, and acts autonomously.
+
+### The Agentic Loop
+
+```mermaid
+graph LR
+    subgraph Environment
+        E[Match Events]
+    end
+
+    subgraph Agent [Suksham Vachak Agent]
+        P[Perceive<br/>Parser]
+        R[Reason<br/>Context Engine]
+        M[Remember<br/>Stats + RAG]
+        PL[Plan<br/>Narrative]
+        A[Act<br/>Commentary]
+    end
+
+    subgraph Tools
+        LLM[Claude LLM]
+        TTS[TTS API]
+    end
+
+    E --> P
+    P --> R
+    R <--> M
+    R --> PL
+    PL --> A
+    A --> LLM
+    A --> TTS
+    TTS --> Output[Audio]
+
+    style P fill:#e1f5fe
+    style R fill:#fff3e0
+    style M fill:#f3e5f5
+    style PL fill:#e8f5e9
+    style A fill:#fce4ec
+```
+
+### Capability Mapping
+
+| Agentic Capability    | Component                  | Implementation                                                           |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------ |
+| **Perception**        | `Parser`                   | Transforms raw Cricsheet JSON into typed `CricketEvent` stream           |
+| **Reasoning**         | `ContextBuilder`           | Calculates pressure (0-1), detects momentum shifts, identifies narrative |
+| **Short-term Memory** | `NarrativeTracker`         | Tracks current storyline, subplots, recent events within match           |
+| **Long-term Memory**  | `StatsEngine`              | SQLite database of historical player matchups, phase stats, form         |
+| **Episodic Memory**   | `DejaVu RAG`               | ChromaDB vectors of memorable moments for callbacks                      |
+| **Planning**          | `PhaseEngine + FormEngine` | Anticipates match trajectory based on phase and player trends            |
+| **Personality**       | `Personas`                 | Benaud (minimalist), Greig (dramatic), Bhogle (analytical)               |
+| **Tool Use**          | `LLM + TTS`                | Claude for generation, Google/Azure/ElevenLabs for speech                |
+| **Action**            | `CommentaryEngine`         | Produces contextual, persona-appropriate natural language                |
+
+### Why Agentic Matters
+
+**Traditional AI**: `"Kohli hits four"` → `"Nice shot!"`
+
+**Suksham Vachak (Agentic)**: Same event produces `"Four. That's 85 off Anderson now — Kohli owns this matchup."` because it:
+
+- **Remembers** the head-to-head history (Stats Engine)
+- **Reasons** about match significance (Context Engine)
+- **Plans** the narrative arc (Narrative Tracker)
+- **Acts** with persona-appropriate restraint (Benaud)
+
+> For a deep dive into the agentic architecture, see [AGENTIC.md](AGENTIC.md).
+
+---
+
 ## Executive Summary
 
 Suksham Vachak is a personalized AI cricket commentary platform that generates authentic, persona-driven commentary from match data. The system uses LLMs with rich situational context to produce commentary that captures each commentator's unique style.

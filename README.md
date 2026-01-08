@@ -22,6 +22,43 @@ At its heart, Suksham Vāchak is:
 - 📦 A **small-footprint, containerized service** that can run even on a Raspberry Pi
 - 💡 Built on the belief that _intelligence ≠ big infrastructure_ — subtle design and smart reasoning outperform brute force
 
+## 🧠 Agentic AI Architecture
+
+Suksham Vachak implements the **Agentic AI paradigm** — not just a model that responds, but a system that perceives, reasons, remembers, and acts.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         THE AGENTIC LOOP                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│    PERCEIVE         REASON           REMEMBER          ACT              │
+│    ┌───────┐       ┌───────┐        ┌───────┐       ┌───────┐          │
+│    │Parser │──────▶│Context│◀──────▶│ Stats │──────▶│Comment│          │
+│    │       │       │Engine │        │ + RAG │       │Engine │          │
+│    └───────┘       └───────┘        └───────┘       └───────┘          │
+│        │               │                │               │               │
+│    Cricsheet       Pressure          Matchups       "Four."            │
+│    JSON            Momentum          History        + Audio            │
+│    Events          Narrative         Parallels                         │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Capability           | Component         | What It Does                                          |
+| -------------------- | ----------------- | ----------------------------------------------------- |
+| **Perception**       | Parser            | Observes match events, extracts structure             |
+| **Reasoning**        | Context Engine    | Calculates pressure, detects momentum shifts          |
+| **Long-term Memory** | Stats Engine      | Historical matchups, phase stats, player form         |
+| **Episodic Memory**  | RAG (DejaVu)      | Recalls similar moments for callbacks                 |
+| **Working Memory**   | Narrative Tracker | Current storyline, subplots, recent events            |
+| **Planning**         | Phase + Form      | Anticipates trajectory based on patterns              |
+| **Personality**      | Personas          | Benaud (terse), Greig (dramatic), Bhogle (analytical) |
+| **Tool Use**         | LLM + TTS         | Claude for text, ElevenLabs for voice                 |
+
+**Why Agentic?** Traditional AI: `"Kohli hits four"` → `"Nice shot!"`. Agentic AI: Same event produces `"Four. That's 85 off Anderson now — Kohli owns this matchup."` because it _remembers_, _reasons_, and _understands context_.
+
+> 📖 Deep dive: [docs/AGENTIC.md](docs/AGENTIC.md)
+
 ## 🌍 What Does It Do?
 
 Takes **structured cricket event data** (ball-by-ball JSON feeds) and converts them into:

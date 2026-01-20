@@ -75,7 +75,7 @@ Designed multi-tenant B2B platform with:
 
 ## What's Next
 
-1. **Fix TTS authentication** — Google Cloud credentials expired; restore end-to-end demo
+1. ~~**Fix TTS authentication**~~ ✅ Switched to ElevenLabs as primary provider
 2. **Collect Benaud training data** — YouTube transcripts, book quotes, Cricinfo archives
 3. **First fine-tuning run** — QLoRA on Qwen 7B with ~500 Benaud examples
 4. **Voice cloning** — ElevenLabs profile from audio samples

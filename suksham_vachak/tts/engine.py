@@ -1,6 +1,7 @@
 """TTS Engine - Main orchestrator for text-to-speech synthesis."""
 
 import hashlib
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -412,12 +413,17 @@ class TTSEngine:
 
 
 def create_tts_engine(
-    provider: str = "google",
-    fallback_provider: str | None = "azure",
+    provider: str | None = None,
+    fallback_provider: str | None = None,
     cache_enabled: bool = True,
     cache_dir: str = ".tts_cache",
 ) -> TTSEngine:
     """Convenience function to create a TTS engine.
+
+    Provider selection priority:
+    1. Explicit parameter
+    2. TTS_PROVIDER environment variable
+    3. Default: 'elevenlabs' (recommended for voice cloning)
 
     Args:
         provider: Primary TTS provider ('google', 'azure', or 'elevenlabs').
@@ -428,6 +434,19 @@ def create_tts_engine(
     Returns:
         Configured TTSEngine instance.
     """
+    # Read from env vars if not specified
+    if provider is None:
+        provider = os.environ.get("TTS_PROVIDER", "elevenlabs")
+    if fallback_provider is None:
+        fallback_provider = os.environ.get("TTS_FALLBACK_PROVIDER", "google")
+
+    logger.info(
+        "creating_tts_engine",
+        provider=provider,
+        fallback_provider=fallback_provider,
+        cache_enabled=cache_enabled,
+    )
+
     config = TTSConfig(
         provider=provider,
         fallback_provider=fallback_provider,

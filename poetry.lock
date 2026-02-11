@@ -3492,6 +3492,18 @@ files = [
 markers = {main = "extra == \"rag\" and python_version == \"3.10\"", dev = "python_version == \"3.10\""}
 
 [[package]]
+name = "toon-format"
+version = "0.1.0"
+description = "Token-Oriented Object Notation – a token-efficient JSON alternative for LLM prompts"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "toon_format-0.1.0-py3-none-any.whl", hash = "sha256:f0c7bf3f63f1fc08739127ca895a55922617193f942f84474489770d7cd1ffc2"},
+    {file = "toon_format-0.1.0.tar.gz", hash = "sha256:77303c9b06956fe8b0066d2bca52dfdc63e2b3abba439c3c3545dbbd43a97d48"},
+]
+
+[[package]]
 name = "tox"
 version = "4.25.0"
 description = "tox is a generic virtualenv management and test command line tool"
@@ -4130,4 +4142,4 @@ tts-google = ["google-cloud-texttospeech"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "79f4f1e234083114d23b8cc7dec22142dedb95349f21408534ee5aee99a50986"
+content-hash = "512e9c16569c429f4fbfc5546525f25cc56407a3c8088420d7c47e2f69fd78f7"

@@ -165,6 +165,7 @@ class CommentaryEngine:
         self,
         default_language: str = "en",
         use_llm: bool = False,
+        use_toon: bool = True,
         llm_client: BaseLLMProvider | None = None,
         llm_provider: str = "auto",
         context_builder: ContextBuilder | None = None,
@@ -174,6 +175,8 @@ class CommentaryEngine:
         Args:
             default_language: Default language for commentary generation.
             use_llm: Whether to use LLM for generation. Falls back to templates if False.
+            use_toon: Whether to use TOON format for LLM prompts (~50% token savings).
+                      Defaults to True for cost efficiency.
             llm_client: Pre-configured LLM provider. If use_llm=True and not provided,
                         creates one based on llm_provider setting.
             llm_provider: Which LLM provider to use when auto-creating:
@@ -185,11 +188,12 @@ class CommentaryEngine:
         """
         self.default_language = default_language
         self.use_llm = use_llm
+        self.use_toon = use_toon
         self._llm_provider = llm_client
         self._llm_provider_name = llm_provider
         self.context_builder = context_builder
 
-        # Cache system prompts per persona to avoid rebuilding
+        # Cache system prompts per persona (keyed by persona name + toon flag)
         self._system_prompt_cache: dict[str, str] = {}
 
     @property
@@ -259,13 +263,13 @@ class CommentaryEngine:
         rich_context: RichContext | None = None,
     ) -> Commentary:
         """Generate commentary using the LLM."""
-        # Get or build system prompt (cached per persona)
+        # Get or build system prompt (cached per persona + toon combo)
         system_prompt = self._get_system_prompt(persona)
 
         # Build event-specific user prompt
         # Use rich context prompt if available, otherwise basic event prompt
         if rich_context is not None:
-            user_prompt = build_rich_context_prompt(rich_context, persona)
+            user_prompt = build_rich_context_prompt(rich_context, persona, use_toon=self.use_toon)
         else:
             user_prompt = build_event_prompt(event, persona)
 
@@ -302,10 +306,14 @@ class CommentaryEngine:
         )
 
     def _get_system_prompt(self, persona: Persona) -> str:
-        """Get cached system prompt for a persona."""
-        if persona.name not in self._system_prompt_cache:
-            self._system_prompt_cache[persona.name] = build_system_prompt(persona)
-        return self._system_prompt_cache[persona.name]
+        """Get cached system prompt for a persona.
+
+        Cache key includes use_toon flag since prompts differ.
+        """
+        cache_key = f"{persona.name}:toon={self.use_toon}"
+        if cache_key not in self._system_prompt_cache:
+            self._system_prompt_cache[cache_key] = build_system_prompt(persona, use_toon=self.use_toon)
+        return self._system_prompt_cache[cache_key]
 
     def _generate_with_templates(
         self,

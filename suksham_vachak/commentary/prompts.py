@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 SYSTEM_PROMPT_TEMPLATE = """You are {name}, a legendary cricket commentator.
 
 Your style: {style_description}
-
+{toon_schema}
 SIGNATURE PHRASES you use:
 {signature_phrases}
 
@@ -167,11 +167,27 @@ def _get_word_limit_reminder(persona: Persona, event: CricketEvent) -> str:
     return limits.get(event.event_type, "")
 
 
-def build_system_prompt(persona: Persona) -> str:
-    """Build the system prompt for a persona."""
+def build_system_prompt(persona: Persona, use_toon: bool = False) -> str:
+    """Build the system prompt for a persona.
+
+    Args:
+        persona: The commentary persona.
+        use_toon: If True, include TOON schema explanation in the prompt.
+
+    Returns:
+        The formatted system prompt.
+    """
+    # Include TOON schema if enabled
+    toon_schema = ""
+    if use_toon:
+        from suksham_vachak.serialization import CRICKET_TOON_SCHEMA
+
+        toon_schema = "\n" + CRICKET_TOON_SCHEMA + "\n"
+
     return SYSTEM_PROMPT_TEMPLATE.format(
         name=persona.name,
         style_description=_get_style_description(persona),
+        toon_schema=toon_schema,
         signature_phrases="\n".join(f'- "{p}"' for p in persona.signature_phrases[:8]),
         word_limit_rules=_get_word_limit_rules(persona),
         bad_examples=_get_bad_examples(persona),
@@ -207,6 +223,7 @@ Respond with ONLY your commentary line. No explanations, no quotes around your t
 def build_rich_context_prompt(
     rich_context: RichContext,
     persona: Persona,
+    use_toon: bool = False,
 ) -> str:
     """Build an enhanced prompt using rich match context.
 
@@ -219,13 +236,17 @@ def build_rich_context_prompt(
     Args:
         rich_context: The rich context object with full situational awareness
         persona: The commentary persona
+        use_toon: If True, use TOON format for ~50% token savings
 
     Returns:
         Enhanced prompt for LLM commentary generation
     """
     word_limit = _get_word_limit_reminder(persona, rich_context.event)
 
+    # Use TOON format if enabled, otherwise plain text
+    context_text = rich_context.to_toon() if use_toon else rich_context.to_prompt_context()
+
     return RICH_CONTEXT_PROMPT_TEMPLATE.format(
-        rich_context=rich_context.to_prompt_context(),
+        rich_context=context_text,
         word_limit_reminder=word_limit,
     )

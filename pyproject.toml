@@ -24,6 +24,7 @@ pydantic-settings = "^2.0"   # Settings management
 pyyaml = "^6.0"              # YAML parsing (cricket data, avatars)
 httpx = "^0.28.0"            # Async HTTP client
 python-dotenv = "^1.2.1"
+toon-format = "^0.1.0"       # Token-efficient serialization for LLM prompts
 
 # Phase 2: TTS dependencies (optional - install with: poetry install --extras tts)
 google-cloud-texttospeech = {version = "^2.16.0", optional = true}

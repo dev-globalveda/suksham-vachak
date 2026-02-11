@@ -1,13 +1,13 @@
 # 🚀 Suksham Vachak Prototype Build Script
 
-> **Mental Framework for Claude CLI Engagement**
-> *Target: Working MVP in 5-7 days*
+> **Mental Framework for Claude CLI Engagement** > _Target: Working MVP in 5-7 days_
 
 ---
 
 ## 🎯 The Goal
 
 A **Streamlit demo** that shows:
+
 1. Same cricket ball → 3 different persona commentaries
 2. Same commentary → 3 different languages
 3. Sliders that affect style in real-time
@@ -44,6 +44,7 @@ A **Streamlit demo** that shows:
 ### DAY 1: Foundation (Data + Structure)
 
 **Session 1: Project Setup**
+
 ```
 You: /plan
 
@@ -61,6 +62,7 @@ Use Poetry for dependency management. The project exists at:
 ```
 
 **Session 2: Data Parser**
+
 ```
 You: /build
 
@@ -74,6 +76,7 @@ Here's a sample JSON structure: [paste from a sample file]
 ```
 
 **Session 3: Test the Parser**
+
 ```
 You: /run
 
@@ -86,6 +89,7 @@ Show me the output for one over of a match.
 ### DAY 2: Persona Engine
 
 **Session 1: Base Persona**
+
 ```
 You: /build
 
@@ -96,6 +100,7 @@ Create src/personas/base.py with:
 ```
 
 **Session 2: Three Core Personas**
+
 ```
 You: /build
 
@@ -111,6 +116,7 @@ Each should have:
 ```
 
 **Session 3: Test Personas**
+
 ```
 You: /run
 
@@ -126,6 +132,7 @@ Show me how different each persona's output is.
 ### DAY 3: LLM Integration
 
 **Session 1: Claude Client**
+
 ```
 You: /build
 
@@ -140,6 +147,7 @@ API key from environment variable: ANTHROPIC_API_KEY
 ```
 
 **Session 2: Commentary Generator**
+
 ```
 You: /build
 
@@ -151,6 +159,7 @@ Create src/llm/generator.py that:
 ```
 
 **Session 3: End-to-End Test**
+
 ```
 You: /run
 
@@ -166,6 +175,7 @@ Generate commentary for an entire over:
 ### DAY 4: Language Layer
 
 **Session 1: Translation Engine**
+
 ```
 You: /build
 
@@ -179,6 +189,7 @@ Key rule: "Gone." in English = "गया।" in Hindi (NOT "वह आउट �
 ```
 
 **Session 2: Phrase Banks**
+
 ```
 You: /build
 
@@ -191,6 +202,7 @@ These are for speed - no LLM call needed for common phrases.
 ```
 
 **Session 3: Test Multilingual**
+
 ```
 You: /run
 
@@ -206,6 +218,7 @@ Verify minimalism is preserved!
 ### DAY 5: TTS Integration
 
 **Session 1: TTS Engine**
+
 ```
 You: /build
 
@@ -222,6 +235,7 @@ Include prosody for:
 ```
 
 **Session 2: Audio Generation**
+
 ```
 You: /run
 
@@ -238,6 +252,7 @@ Save as MP3 files.
 ### DAY 6: Streamlit UI
 
 **Session 1: Basic App**
+
 ```
 You: /build
 
@@ -250,6 +265,7 @@ Create mvp/app.py (Streamlit) with:
 ```
 
 **Session 2: Style Sliders**
+
 ```
 You: /edit mvp/app.py
 
@@ -262,6 +278,7 @@ These should affect the LLM prompt in real-time.
 ```
 
 **Session 3: Audio Player**
+
 ```
 You: /edit mvp/app.py
 
@@ -276,6 +293,7 @@ Add audio player:
 ### DAY 7: Polish & Demo
 
 **Session 1: Pre-generate Key Moments**
+
 ```
 You: /run
 
@@ -288,6 +306,7 @@ Save to mvp/static/audio/
 ```
 
 **Session 2: Demo Script**
+
 ```
 You: /plan
 
@@ -301,6 +320,7 @@ Create a 5-minute demo script:
 ```
 
 **Session 3: Final Testing**
+
 ```
 You: /run
 
@@ -315,6 +335,7 @@ Record a backup demo video.
 ## 💡 Pro Tips for Claude CLI
 
 ### 1. Context is King
+
 ```
 # Start each session by adding key files
 /add src/data/cricket_parser.py
@@ -325,6 +346,7 @@ Record a backup demo video.
 ```
 
 ### 2. Iterate Fast
+
 ```
 # Don't aim for perfect first time
 You: /build Create a basic version of X
@@ -335,6 +357,7 @@ You: /fix This error is happening: [paste error]
 ```
 
 ### 3. Use /think for Architecture Decisions
+
 ```
 You: /think
 
@@ -343,6 +366,7 @@ Consider: cost, quality, Hindi support, latency, SSML support
 ```
 
 ### 4. Compact When Context Gets Long
+
 ```
 # If conversation is getting long and slow
 /compact
@@ -351,6 +375,7 @@ Consider: cost, quality, Hindi support, latency, SSML support
 ```
 
 ### 5. Test Early, Test Often
+
 ```
 # After every /build, immediately /run to verify
 You: /build Create the parser
@@ -364,6 +389,7 @@ You: /run Test the parser with sample data
 ## 🎯 Success Criteria
 
 ### Minimum Viable Demo
+
 - [ ] Load cricket match data ✓
 - [ ] Generate 3 different persona commentaries
 - [ ] Show in at least 2 languages
@@ -371,6 +397,7 @@ You: /run Test the parser with sample data
 - [ ] Sliders visibly affect output
 
 ### "Wow Factor" Moments
+
 - [ ] Switching Benaud English → Osho Tamil is instant "wow"
 - [ ] Hindi sounds natural, not robotic
 - [ ] The Gabba winning moment gets emotional response
@@ -380,6 +407,7 @@ You: /run Test the parser with sample data
 ## 🆘 Troubleshooting
 
 ### LLM Not Following Persona Style
+
 ```
 You: /think
 
@@ -389,6 +417,7 @@ Consider: prompt engineering, post-processing, few-shot examples
 ```
 
 ### TTS Sounds Robotic
+
 ```
 You: /fix
 
@@ -400,6 +429,7 @@ Add SSML prosody tags for:
 ```
 
 ### Streamlit Too Slow
+
 ```
 You: /think
 
@@ -452,6 +482,7 @@ Day 7: Polish      ✨
 ```
 
 **Start Command:**
+
 ```bash
 cd /path/to/suksham-vachak
 claude
@@ -461,5 +492,4 @@ You: /plan Let's build Suksham Vachak MVP. Starting with Day 1 - the cricket dat
 
 ---
 
-*"The seed was planted on December 31, 2025. Now we build the tree."* 🌱→🌳
-
+_"The seed was planted on December 31, 2025. Now we build the tree."_ 🌱→🌳

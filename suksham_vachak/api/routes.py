@@ -16,7 +16,6 @@ from suksham_vachak.logging import get_logger
 from suksham_vachak.parser import CricsheetParser, EventType
 from suksham_vachak.personas import BENAUD, DOSHI, GREIG
 from suksham_vachak.tts import AudioFormat
-from suksham_vachak.tts.prosody import ProsodyController
 
 logger = get_logger(__name__)
 
@@ -44,8 +43,10 @@ LLM_AVAILABLE = LLM_AVAILABILITY["claude"] or LLM_AVAILABILITY["ollama"]
 
 router = APIRouter(prefix="/api", tags=["api"])
 
-# Data directory
-DATA_DIR = Path("data/cricsheet_sample")
+# Data directory - use full Cricsheet dataset if available, otherwise sample
+DATA_DIR = Path("data/all_male_json")
+if not DATA_DIR.exists():
+    DATA_DIR = Path("data/cricsheet_sample")
 
 # Persona registry
 PERSONAS = {
@@ -100,6 +101,7 @@ class CommentaryRequest(BaseModel):
     language: str = "en"  # "en" or "hi"
     use_llm: bool = True  # Use LLM for generation (falls back to templates if unavailable)
     llm_provider: str = "auto"  # "auto", "claude", or "ollama"
+    use_toon: bool = True  # Use TOON format for ~50% token savings
 
 
 class CommentaryResponse(BaseModel):
@@ -114,14 +116,40 @@ class CommentaryResponse(BaseModel):
 
 
 @router.get("/matches")
-async def list_matches() -> list[dict[str, Any]]:
-    """List all available matches."""
+async def list_matches(
+    match_format: str | None = None,
+    team: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """List available matches with optional filtering.
+
+    Args:
+        match_format: Filter by match format (T20, ODI, Test)
+        team: Filter by team name (partial match, case-insensitive)
+        limit: Maximum number of matches to return (default 50)
+        offset: Number of matches to skip (for pagination)
+    """
     matches = []
 
-    for json_file in sorted(DATA_DIR.glob("*.json")):
+    # Sort by filename descending (newer matches have higher IDs)
+    json_files = sorted(DATA_DIR.glob("*.json"), reverse=True)
+
+    for json_file in json_files:
         try:
             parser = CricsheetParser(json_file)
             info = parser.match_info
+
+            # Apply format filter
+            if match_format and info.format.value.lower() != match_format.lower():
+                continue
+
+            # Apply team filter
+            if team:
+                team_lower = team.lower()
+                teams_lower = [t.lower() for t in info.teams]
+                if not any(team_lower in t for t in teams_lower):
+                    continue
 
             matches.append({
                 "id": info.match_id,
@@ -132,11 +160,17 @@ async def list_matches() -> list[dict[str, Any]]:
                 "winner": info.outcome_winner,
                 "file": json_file.name,
             })
+
+            # Stop if we have enough matches (with offset consideration)
+            if len(matches) >= offset + limit:
+                break
+
         except Exception as e:
             logger.warning("Failed to parse match", file=json_file.name, error=str(e))
             continue
 
-    return matches
+    # Apply offset and limit
+    return matches[offset : offset + limit]
 
 
 @router.get("/matches/{match_id}")
@@ -296,6 +330,7 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
     # Generate commentary with context (supports auto-detection of Ollama/Claude)
     engine = CommentaryEngine(
         use_llm=use_llm,
+        use_toon=request.use_toon,
         llm_provider=request.llm_provider,
         context_builder=context_builder,
     )
@@ -344,26 +379,16 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
 
     try:
         if text:
-            # Generate SSML
-            controller = ProsodyController()
-            ssml = controller.apply_prosody(text, persona, target_event.event_type)
+            from suksham_vachak.tts.elevenlabs import ElevenLabsTTSProvider
 
-            from suksham_vachak.tts.google import GoogleTTSProvider
+            provider = ElevenLabsTTSProvider()
 
-            provider = GoogleTTSProvider()
-
-            # Get voice based on persona AND target language
+            # Get voice based on persona
             voice_id = provider.get_voice_for_persona(persona.name, target_language)
 
-            # Set language code
-            if target_language == "hi":
-                language_code = "hi-IN"
-            else:
-                # Use Australian accent for Benaud, British for Greig
-                language_code = "en-AU" if persona.name == "Richie Benaud" else "en-GB"
-
+            # ElevenLabs doesn't use SSML, pass plain text
             result = provider.synthesize(
-                text=ssml, voice_id=voice_id, language=language_code, ssml=True, audio_format=AudioFormat.MP3
+                text=text, voice_id=voice_id, language=target_language, ssml=False, audio_format=AudioFormat.MP3
             )
 
             audio_base64 = base64.b64encode(result.audio_bytes).decode("utf-8")

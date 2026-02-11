@@ -169,6 +169,7 @@ cython_debug/
 # Large data files
 data/cricsheet_all_male_json.zip
 data/cricsheet/
+data/all_male_json/
 
 # RAG vector database (regenerated from source data)
 data/vector_db/*

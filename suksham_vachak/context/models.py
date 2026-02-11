@@ -366,6 +366,18 @@ class RichContext:
 
         return "\n".join(sections)
 
+    def to_toon(self) -> str:
+        """Serialize to TOON format for token-efficient LLM prompts.
+
+        Returns ~50% fewer tokens than to_prompt_context().
+
+        Returns:
+            TOON-formatted string optimized for LLM consumption.
+        """
+        from suksham_vachak.serialization import encode_rich_context
+
+        return encode_rich_context(self)
+
     def _describe_event(self) -> str:
         """Brief description of the current event."""
         event = self.event

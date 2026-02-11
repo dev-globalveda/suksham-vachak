@@ -2083,6 +2083,48 @@ Every implementation must pass the Benaud Test:
 
 ---
 
+## Technology Radar: TTS Providers
+
+### Current: ElevenLabs (Cloud API)
+
+Production TTS provider offering high-quality prosody, Hindi support, and proven reliability. Per-character API costs apply.
+
+### Under Consideration: Qwen3-TTS (Self-Hosted, Jan 2026)
+
+Open-source TTS from Alibaba's Qwen team. Key attributes:
+
+| Attribute     | Details                                                        |
+| ------------- | -------------------------------------------------------------- |
+| Models        | 0.6B and 1.7B parameter variants                               |
+| Latency       | 97ms first-packet streaming                                    |
+| Languages     | 10 (EN, CN, JP, KR, DE, FR, RU, PT, ES, IT) — **no Hindi yet** |
+| Voice Cloning | 3-second audio sample                                          |
+| Voice Design  | Natural language description of desired voice                  |
+| Cost          | Free (self-hosted, GPU required)                               |
+| License       | Open-source                                                    |
+
+**Potential for Suksham Vachak:**
+
+- Free inference eliminates per-character costs at scale
+- Voice Design could define persona voices via text description (e.g., "authoritative Australian male, measured pace, cricket commentator")
+- Voice Cloning from 3s reference enables authentic persona recreation
+- 97ms streaming latency beats cloud API round-trips
+
+**Blockers:**
+
+- No Hindi/Indian language support (critical for Susheel Doshi persona and Hindi mode)
+- GPU requirement for local inference (1.7B model)
+- Newly released — production stability unproven
+
+**Decision:** Monitor for Hindi language support in future releases. Consider hybrid approach (Qwen3-TTS for English personas, ElevenLabs for Hindi) if quality benchmarks are satisfactory.
+
+**References:**
+
+- [Qwen3-TTS GitHub](https://github.com/QwenLM/Qwen3-TTS)
+- [HuggingFace Collection](https://huggingface.co/collections/Qwen/qwen3-tts)
+
+---
+
 ## Document History
 
 | Version | Date       | Author | Changes                                                                   |
@@ -2099,6 +2141,7 @@ Every implementation must pass the Benaud Test:
 | 5.1     | 2025-01-08 | Team   | Observability & APM: structured logging, correlation IDs, APM guide       |
 | 5.2     | 2025-01-08 | Team   | Future Auth section: Cloudflare Access, FastAPI OAuth2, auth providers    |
 | 5.3     | 2025-01-08 | Team   | Local LLM support: Ollama provider, Pi 5 deployment guide, auto-detection |
+| 5.4     | 2026-01-22 | Team   | Technology Radar: Qwen3-TTS evaluation, TOON format integration           |
 
 ---
 

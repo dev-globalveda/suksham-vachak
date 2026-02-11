@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/solid";
 import type { Match, Moment, Persona, CommentaryResponse } from "@/types";
 import * as api from "@/lib/api";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
   // State
@@ -25,6 +26,11 @@ export default function Home() {
   const [showMatchDropdown, setShowMatchDropdown] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<"en" | "hi">("en");
 
+  // Filter state
+  const [formatFilter, setFormatFilter] = useState<string>("");
+  const [teamFilter, setTeamFilter] = useState<string>("");
+  const [isSearching, setIsSearching] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Cache for generated commentary: key = "matchId-ballNumber-personaId"
@@ -38,12 +44,12 @@ export default function Home() {
     language: string,
   ) => `${matchId}-${ballNumber}-${personaId}-${language}`;
 
-  // Load initial data
+  // Load initial data (curated matches by default)
   useEffect(() => {
     async function loadData() {
       try {
         const [matchesData, personasData] = await Promise.all([
-          api.fetchMatches(),
+          api.fetchCuratedMatches(),
           api.fetchPersonas(),
         ]);
         setMatches(matchesData);
@@ -57,6 +63,46 @@ export default function Home() {
     }
     loadData();
   }, []);
+
+  // Search for matches with filters
+  async function handleSearchMatches() {
+    setIsSearching(true);
+    try {
+      const matchesData = await api.fetchMatches({
+        format: formatFilter || undefined,
+        team: teamFilter || undefined,
+        limit: 20,
+      });
+      setMatches(matchesData);
+      setSelectedMatch(null);
+      setMoments([]);
+      setSelectedMoment(null);
+      setCommentary(null);
+    } catch (err) {
+      console.error("Failed to search matches:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  // Reset to curated matches
+  async function handleResetToCurated() {
+    setFormatFilter("");
+    setTeamFilter("");
+    setIsSearching(true);
+    try {
+      const matchesData = await api.fetchCuratedMatches();
+      setMatches(matchesData);
+      setSelectedMatch(null);
+      setMoments([]);
+      setSelectedMoment(null);
+      setCommentary(null);
+    } catch (err) {
+      console.error("Failed to load curated matches:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  }
 
   // Load moments when match changes
   useEffect(() => {
@@ -178,11 +224,56 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="glass rounded-2xl p-6"
+              className="glass rounded-2xl p-6 relative z-30"
             >
               <h2 className="text-sm uppercase tracking-widest text-white/40 mb-4">
                 Select Match
               </h2>
+
+              {/* Filter Controls */}
+              <div className="space-y-3 mb-4">
+                <div className="flex gap-2">
+                  <select
+                    value={formatFilter}
+                    onChange={(e) => setFormatFilter(e.target.value)}
+                    className="flex-1 p-3 bg-white/5 rounded-lg border border-white/10 text-white/80 text-sm focus:outline-none focus:border-white/20"
+                  >
+                    <option value="">All Formats</option>
+                    <option value="T20">T20</option>
+                    <option value="ODI">ODI</option>
+                    <option value="Test">Test</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={teamFilter}
+                    onChange={(e) => setTeamFilter(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && handleSearchMatches()
+                    }
+                    placeholder="Team name..."
+                    className="flex-1 p-3 bg-white/5 rounded-lg border border-white/10 text-white/80 text-sm placeholder-white/30 focus:outline-none focus:border-white/20"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSearchMatches}
+                    disabled={isSearching}
+                    className="flex-1 flex items-center justify-center gap-2 p-3 bg-white/10 hover:bg-white/15 rounded-lg text-sm text-white/80 transition-colors disabled:opacity-50"
+                  >
+                    <MagnifyingGlassIcon className="w-4 h-4" />
+                    {isSearching ? "Searching..." : "Search"}
+                  </button>
+                  <button
+                    onClick={handleResetToCurated}
+                    disabled={isSearching}
+                    className="px-4 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-white/60 transition-colors disabled:opacity-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              {/* Match Dropdown */}
               <div className="relative">
                 <button
                   onClick={() => setShowMatchDropdown(!showMatchDropdown)}
@@ -191,7 +282,9 @@ export default function Home() {
                   <span className="text-white/80">
                     {selectedMatch
                       ? `${selectedMatch.teams[0]} vs ${selectedMatch.teams[1]}`
-                      : "Choose a match..."}
+                      : `Choose from ${matches.length} match${
+                          matches.length !== 1 ? "es" : ""
+                        }...`}
                   </span>
                   <ChevronDownIcon className="w-5 h-5 text-white/40" />
                 </button>
@@ -202,25 +295,36 @@ export default function Home() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute z-10 w-full mt-2 bg-zinc-900 rounded-xl border border-white/10 shadow-2xl max-h-64 overflow-y-auto"
+                      className="absolute z-50 w-full mt-2 bg-zinc-900 rounded-xl border border-white/10 shadow-2xl max-h-64 overflow-y-auto"
                     >
-                      {matches.map((match) => (
-                        <button
-                          key={match.id}
-                          onClick={() => {
-                            setSelectedMatch(match);
-                            setShowMatchDropdown(false);
-                          }}
-                          className="w-full text-left p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
-                        >
-                          <div className="font-medium text-white/90">
-                            {match.teams[0]} vs {match.teams[1]}
-                          </div>
-                          <div className="text-sm text-white/40 mt-1">
-                            {match.venue} • {match.date}
-                          </div>
-                        </button>
-                      ))}
+                      {matches.length === 0 ? (
+                        <div className="p-4 text-white/40 text-center text-sm">
+                          No matches found. Try different filters.
+                        </div>
+                      ) : (
+                        matches.map((match) => (
+                          <button
+                            key={match.id}
+                            onClick={() => {
+                              setSelectedMatch(match);
+                              setShowMatchDropdown(false);
+                            }}
+                            className="w-full text-left p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium text-white/90">
+                                {match.teams[0]} vs {match.teams[1]}
+                              </div>
+                              <span className="text-xs px-2 py-1 bg-white/10 rounded text-white/50">
+                                {match.format}
+                              </span>
+                            </div>
+                            <div className="text-sm text-white/40 mt-1">
+                              {match.venue} • {match.date}
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

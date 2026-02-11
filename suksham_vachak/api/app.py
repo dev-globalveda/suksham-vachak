@@ -2,6 +2,7 @@
 
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,6 +10,9 @@ from suksham_vachak.logging import configure_logging, get_logger
 
 from .middleware import CorrelationIdMiddleware, RequestLoggingMiddleware
 from .routes import router
+
+# Load environment variables from .env file (before any config reads below)
+load_dotenv()
 
 # Configure logging based on environment
 env = os.getenv("LOG_ENV", "development")

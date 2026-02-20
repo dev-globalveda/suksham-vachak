@@ -36,8 +36,17 @@ class TTSConfig:
     """Configuration for TTS Engine."""
 
     # Provider settings
-    provider: str = "google"  # "google", "azure", or "elevenlabs"
-    fallback_provider: str | None = "azure"  # Fallback if primary fails
+    provider: str = "qwen3"  # Primary: "qwen3", "svara", "elevenlabs", "google", "azure"
+    fallback_provider: str | None = "svara"  # Fallback if primary fails
+
+    # Language-aware provider chains: language → ordered list of providers to try
+    # If set, overrides provider/fallback_provider for the given language
+    language_providers: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "en": ["qwen3", "svara", "elevenlabs"],
+            "hi": ["svara", "elevenlabs"],
+        }
+    )
 
     # Audio settings
     audio_format: AudioFormat = AudioFormat.MP3
@@ -61,6 +70,17 @@ class TTSEngine:
 
     # Default voice mappings per provider
     DEFAULT_VOICE_MAPPINGS: ClassVar[dict[str, dict[str, str]]] = {
+        "qwen3": {
+            "Richie Benaud": "Ryan",
+            "Tony Greig": "Aiden",
+            "Harsha Bhogle": "Ryan",
+        },
+        "svara": {
+            "Richie Benaud": "en_male",
+            "Tony Greig": "en_male",
+            "Harsha Bhogle": "en_male",
+            "Sushil Doshi": "hi_male",
+        },
         "google": {
             "Richie Benaud": "en-AU-Wavenet-B",
             "Tony Greig": "en-GB-Wavenet-B",
@@ -113,7 +133,15 @@ class TTSEngine:
     def _get_provider(self, provider_name: str) -> TTSProvider:
         """Get or create a TTS provider instance."""
         if provider_name not in self._providers:
-            if provider_name == "google":
+            if provider_name == "qwen3":
+                from .qwen3 import Qwen3TTSProvider
+
+                self._providers[provider_name] = Qwen3TTSProvider()
+            elif provider_name == "svara":
+                from .svara import SvaraTTSProvider
+
+                self._providers[provider_name] = SvaraTTSProvider()
+            elif provider_name == "google":
                 from .google import GoogleTTSProvider
 
                 self._providers[provider_name] = GoogleTTSProvider()
@@ -130,6 +158,30 @@ class TTSEngine:
                 raise TTSError(msg)
 
         return self._providers[provider_name]
+
+    def _get_provider_chain(self, language: str) -> list[str]:
+        """Get the ordered list of providers to try for a language.
+
+        Uses language_providers config if the language has a chain defined,
+        otherwise falls back to the default provider + fallback_provider.
+
+        Args:
+            language: Language code (e.g., 'en', 'hi').
+
+        Returns:
+            Ordered list of provider names to try.
+        """
+        lang_code = language.split("-")[0].lower()
+
+        # Check for language-specific chain
+        if lang_code in self.config.language_providers:
+            return list(self.config.language_providers[lang_code])
+
+        # Fall back to default provider chain
+        chain = [self.config.provider]
+        if self.config.fallback_provider:
+            chain.append(self.config.fallback_provider)
+        return chain
 
     def _get_voice_id(self, persona: Persona, provider_name: str) -> str:
         """Get voice ID for a persona from config or defaults."""
@@ -149,7 +201,13 @@ class TTSEngine:
             return provider.get_voice_for_persona(persona.name, language)  # type: ignore[union-attr]
 
         # Ultimate fallback
-        if provider_name == "google":
+        if provider_name == "qwen3":
+            return "Ryan"
+        elif provider_name == "svara":
+            language = persona.languages[0] if persona.languages else "en"
+            lang_code = language.split("-")[0].lower()
+            return f"{lang_code}_male"
+        elif provider_name == "google":
             return "en-US-Wavenet-D"
         elif provider_name == "elevenlabs":
             return "pNInz6obpgDQGcFmaJgB"  # Adam
@@ -194,6 +252,9 @@ class TTSEngine:
     ) -> AudioSegment:
         """Synthesize speech for a single commentary.
 
+        Uses language-aware provider chains to select the best TTS provider.
+        For Svara, injects emotion tags based on the cricket event type.
+
         Args:
             commentary: The commentary to synthesize.
             persona: The persona who generated the commentary.
@@ -205,8 +266,15 @@ class TTSEngine:
         text = commentary.text
         event_type = commentary.event.event_type
 
-        # Get voice ID for this persona
-        voice_id = self._get_voice_id(persona, self.config.provider)
+        # Get primary language from persona
+        language = persona.languages[0] if persona.languages else "en"
+
+        # Build language-aware provider chain
+        providers_to_try = self._get_provider_chain(language)
+
+        # Get voice ID for the first provider (may change per provider below)
+        first_provider = providers_to_try[0] if providers_to_try else self.config.provider
+        voice_id = self._get_voice_id(persona, first_provider)
 
         # Generate cache key
         cache_key = self._get_cache_key(text, voice_id, event_type, persona.name)
@@ -214,7 +282,6 @@ class TTSEngine:
         # Check cache first
         cached_audio = self._get_cached_audio(cache_key)
         if cached_audio:
-            # Estimate duration from text
             word_count = len(text.split())
             duration = word_count * 0.4
 
@@ -229,50 +296,56 @@ class TTSEngine:
                 cache_key=cache_key,
             )
 
-        # Apply prosody via SSML if supported
+        # Prepare SSML text (for providers that support it)
         if use_ssml:
             ssml_text = self._prosody_controller.apply_prosody(text, persona, event_type)
-            is_ssml = True
         else:
             ssml_text = text
-            is_ssml = False
 
-        # Try primary provider
+        # Prepare Svara emotion text (for Svara provider)
+        match_ctx = commentary.event.match_context
+        svara_text = self._prepare_svara_text(text, event_type, match_ctx)
+
+        # Try providers in chain order
         result: TTSResult | None = None
         last_error: Exception | None = None
-
-        providers_to_try = [self.config.provider]
-        if self.config.fallback_provider:
-            providers_to_try.append(self.config.fallback_provider)
 
         for provider_name in providers_to_try:
             try:
                 provider = self._get_provider(provider_name)
 
-                # Update voice ID for fallback provider
-                if provider_name != self.config.provider:
-                    voice_id = self._get_voice_id(persona, provider_name)
+                # Skip providers that don't support this language
+                if not provider.supports_language(language):
+                    logger.debug("provider_skip_language", provider=provider_name, language=language)
+                    continue
 
-                # Check if provider supports SSML
-                if is_ssml and not provider.supports_ssml:
-                    # Fall back to plain text
-                    ssml_text = text
+                # Get voice ID for this provider
+                voice_id = self._get_voice_id(persona, provider_name)
+
+                # Choose the right text variant for this provider
+                if provider_name == "svara":
+                    synth_text = svara_text
+                    is_ssml = False
+                elif use_ssml and provider.supports_ssml:
+                    synth_text = ssml_text
+                    is_ssml = True
+                else:
+                    synth_text = text
                     is_ssml = False
 
-                # Get primary language from persona
-                language = persona.languages[0] if persona.languages else "en"
-
                 result = provider.synthesize(
-                    text=ssml_text,
+                    text=synth_text,
                     voice_id=voice_id,
                     language=language,
                     ssml=is_ssml,
                     audio_format=self.config.audio_format,
                 )
+                logger.info("tts_synthesis_success", provider=provider_name, language=language)
                 break
 
             except TTSError as e:
                 last_error = e
+                logger.warning("tts_provider_failed", provider=provider_name, error=str(e))
                 continue
 
         if result is None:
@@ -292,6 +365,34 @@ class TTSEngine:
             voice_id=voice_id,
             cache_key=cache_key,
         )
+
+    def _prepare_svara_text(self, text: str, event_type: EventType, match_ctx: object) -> str:
+        """Prepare text with Svara emotion tags based on event context.
+
+        Args:
+            text: Plain commentary text.
+            event_type: The cricket event type.
+            match_ctx: Match context with target, score, wickets, overs.
+
+        Returns:
+            Text with Svara emotion tag prepended.
+        """
+        from .emotion import get_emotion_tag, inject_emotion
+
+        # Extract match context fields safely
+        target = getattr(match_ctx, "target", None)
+        current_score = getattr(match_ctx, "current_score", 0)
+        current_wickets = getattr(match_ctx, "current_wickets", 0)
+        overs_completed = getattr(match_ctx, "overs_completed", 0.0)
+
+        emotion_tag = get_emotion_tag(
+            event_type,
+            target=target,
+            current_score=current_score,
+            current_wickets=current_wickets,
+            overs_completed=overs_completed,
+        )
+        return inject_emotion(text, emotion_tag)
 
     def synthesize_batch(
         self,
@@ -423,10 +524,14 @@ def create_tts_engine(
     Provider selection priority:
     1. Explicit parameter
     2. TTS_PROVIDER environment variable
-    3. Default: 'elevenlabs' (recommended for voice cloning)
+    3. Default: 'qwen3' (local, free, high-quality English)
+
+    The engine uses language-aware provider chains:
+    - English: qwen3 → svara → elevenlabs
+    - Hindi: svara → elevenlabs
 
     Args:
-        provider: Primary TTS provider ('google', 'azure', or 'elevenlabs').
+        provider: Primary TTS provider ('qwen3', 'svara', 'elevenlabs', 'google', 'azure').
         fallback_provider: Fallback provider if primary fails.
         cache_enabled: Whether to enable audio caching.
         cache_dir: Directory for cached audio files.
@@ -436,9 +541,9 @@ def create_tts_engine(
     """
     # Read from env vars if not specified
     if provider is None:
-        provider = os.environ.get("TTS_PROVIDER", "elevenlabs")
+        provider = os.environ.get("TTS_PROVIDER", "qwen3")
     if fallback_provider is None:
-        fallback_provider = os.environ.get("TTS_FALLBACK_PROVIDER", "google")
+        fallback_provider = os.environ.get("TTS_FALLBACK_PROVIDER", "svara")
 
     logger.info(
         "creating_tts_engine",

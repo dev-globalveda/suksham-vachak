@@ -111,6 +111,17 @@ class TTSProvider(ABC):
         """
         ...
 
+    def supports_language(self, language: str) -> bool:
+        """Check if this provider supports the given language.
+
+        Args:
+            language: Language code (e.g., 'en', 'hi').
+
+        Returns:
+            True if the provider can synthesize speech in this language.
+        """
+        return True
+
     def is_available(self) -> bool:
         """Check if this provider is available (credentials configured, etc.)."""
         return True

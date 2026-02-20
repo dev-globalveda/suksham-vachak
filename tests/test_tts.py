@@ -325,13 +325,17 @@ class TestTTSConfig:
     """Tests for TTSConfig dataclass."""
 
     def test_default_config(self) -> None:
-        """Default config should use Google with Azure fallback."""
+        """Default config should use Qwen3 with Svara fallback."""
         config = TTSConfig()
 
-        assert config.provider == "google"
-        assert config.fallback_provider == "azure"
+        assert config.provider == "qwen3"
+        assert config.fallback_provider == "svara"
         assert config.audio_format == AudioFormat.MP3
         assert config.enable_cache is True
+        assert "en" in config.language_providers
+        assert "hi" in config.language_providers
+        assert config.language_providers["en"] == ["qwen3", "svara", "elevenlabs"]
+        assert config.language_providers["hi"] == ["svara", "elevenlabs"]
 
     def test_custom_config(self) -> None:
         """Custom config should override defaults."""

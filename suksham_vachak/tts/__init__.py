@@ -3,25 +3,19 @@
 This module provides TTS capabilities with prosody control for
 natural-sounding cricket commentary.
 
-Providers:
+Providers (in priority order):
+- Qwen3-TTS: Local, high-quality English synthesis (default for English)
+- Svara-TTS: Local, 19 Indian languages with emotion tags (default for Hindi)
+- ElevenLabs: Premium cloud-based voice cloning (demo/fallback)
 - Google Cloud TTS: High-quality WaveNet voices
 - Azure Cognitive Services: Neural voices
-- ElevenLabs: Premium voice cloning and synthesis
 
 Example usage:
     from suksham_vachak.tts import TTSEngine, TTSConfig, AudioFormat
     from suksham_vachak.personas import BENAUD
 
-    # Create engine with default config
-    engine = TTSEngine()
-
-    # Or with custom config
-    config = TTSConfig(
-        provider="google",
-        audio_format=AudioFormat.MP3,
-        enable_cache=True,
-    )
-    engine = TTSEngine(config)
+    # Create engine with default config (language-aware provider chains)
+    engine = create_tts_engine()
 
     # Synthesize commentary
     segment = engine.synthesize_commentary(commentary, BENAUD)
@@ -73,13 +67,30 @@ __all__ = [
 
 
 def get_available_providers() -> list[str]:
-    """Get list of available TTS providers based on installed packages.
+    """Get list of available TTS providers based on installed packages and running servers.
 
     Returns:
         List of provider names that can be used.
     """
     providers = []
 
+    # Local providers (always importable — they use httpx which is a dependency)
+    # Actual availability depends on whether the servers are running
+    try:
+        from .qwen3 import Qwen3TTSProvider  # noqa: F401
+
+        providers.append("qwen3")
+    except ImportError:
+        pass
+
+    try:
+        from .svara import SvaraTTSProvider  # noqa: F401
+
+        providers.append("svara")
+    except ImportError:
+        pass
+
+    # Cloud providers (require optional SDK installs)
     try:
         from google.cloud import texttospeech  # noqa: F401
 

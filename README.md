@@ -44,16 +44,16 @@ Suksham Vachak implements the **Agentic AI paradigm** — not just a model that 
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Capability           | Component         | What It Does                                          |
-| -------------------- | ----------------- | ----------------------------------------------------- |
-| **Perception**       | Parser            | Observes match events, extracts structure             |
-| **Reasoning**        | Context Engine    | Calculates pressure, detects momentum shifts          |
-| **Long-term Memory** | Stats Engine      | Historical matchups, phase stats, player form         |
-| **Episodic Memory**  | RAG (DejaVu)      | Recalls similar moments for callbacks                 |
-| **Working Memory**   | Narrative Tracker | Current storyline, subplots, recent events            |
-| **Planning**         | Phase + Form      | Anticipates trajectory based on patterns              |
-| **Personality**      | Personas          | Benaud (terse), Greig (dramatic), Bhogle (analytical) |
-| **Tool Use**         | LLM + TTS         | Claude for text, ElevenLabs for voice                 |
+| Capability           | Component         | What It Does                                             |
+| -------------------- | ----------------- | -------------------------------------------------------- |
+| **Perception**       | Parser            | Observes match events, extracts structure                |
+| **Reasoning**        | Context Engine    | Calculates pressure, detects momentum shifts             |
+| **Long-term Memory** | Stats Engine      | Historical matchups, phase stats, player form            |
+| **Episodic Memory**  | RAG (DejaVu)      | Recalls similar moments for callbacks                    |
+| **Working Memory**   | Narrative Tracker | Current storyline, subplots, recent events               |
+| **Planning**         | Phase + Form      | Anticipates trajectory based on patterns                 |
+| **Personality**      | Personas          | Benaud (terse), Greig (dramatic), Bhogle (analytical)    |
+| **Tool Use**         | LLM + TTS         | Claude/Ollama for text, Qwen3/Svara/ElevenLabs for voice |
 
 **Why Agentic?** Traditional AI: `"Kohli hits four"` → `"Nice shot!"`. Agentic AI: Same event produces `"Four. That's 85 off Anderson now — Kohli owns this matchup."` because it _remembers_, _reasons_, and _understands context_.
 
@@ -75,10 +75,11 @@ Takes **structured cricket event data** (ball-by-ball JSON feeds) and converts t
 - Uses agentic reasoning (ReAct, CoT) for tactical insights
 - Suggests momentum shifts, pressure scenarios, bowler strategies
 
-### 3. Multi-Modal Output _(Roadmap)_
+### 3. Multi-Modal Output
 
-- 🔊 Voice commentary via ElevenLabs
-- 📊 Optional real-time web dashboard
+- 🔊 Voice commentary via local TTS (Qwen3 for English, Svara for Hindi + 18 Indian languages) with ElevenLabs cloud fallback
+- 🎭 Emotion-tagged Hindi speech — cricket events auto-mapped to expressive voice tags
+- 📊 Optional real-time web dashboard _(Roadmap)_
 - 📝 Export to logs, transcriptions, or score summaries
 
 ## 🎯 Who Is It For?
@@ -118,7 +119,7 @@ Takes **structured cricket event data** (ball-by-ball JSON feeds) and converts t
 
 - React (Vite)
 - Tailwind CSS
-- ElevenLabs for voice _(future)_
+- Qwen3-TTS / Svara-TTS (local) with ElevenLabs fallback
 
 ### Deployment
 

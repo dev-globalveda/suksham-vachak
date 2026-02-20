@@ -75,11 +75,12 @@ Designed multi-tenant B2B platform with:
 
 ## What's Next
 
-1. ~~**Fix TTS authentication**~~ ✅ Switched to ElevenLabs as primary provider
-2. **Collect Benaud training data** — YouTube transcripts, book quotes, Cricinfo archives
-3. **First fine-tuning run** — QLoRA on Qwen 7B with ~500 Benaud examples
-4. **Voice cloning** — ElevenLabs profile from audio samples
-5. **End-to-end demo** — JSON → Commentary → Audio on Pi 5
+1. ~~**Fix TTS authentication**~~ ✅ Switched to ElevenLabs, then to local TTS (Qwen3 + Svara)
+2. ~~**Local TTS providers**~~ ✅ Qwen3-TTS for English, Svara-TTS for Hindi + 18 Indian languages, ElevenLabs as fallback
+3. **Collect Benaud training data** — YouTube transcripts, book quotes, Cricinfo archives
+4. **First fine-tuning run** — QLoRA on Qwen 7B with ~500 Benaud examples
+5. **Voice cloning** — Qwen3-TTS from 3-second audio samples
+6. **End-to-end demo** — JSON → Commentary → Audio on Pi 5
 
 ---
 

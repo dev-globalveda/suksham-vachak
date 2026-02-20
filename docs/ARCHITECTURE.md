@@ -15,7 +15,7 @@ graph TB
     subgraph ext [External Systems]
         CS[("Cricsheet<br/>Ball-by-ball data")]
         LLM[("LLM Provider<br/>Claude/OpenAI")]
-        TTS[("TTS Provider<br/>Google/Azure/ElevenLabs")]
+        TTS[("TTS Provider<br/>Qwen3/Svara/ElevenLabs")]
     end
 
     subgraph users [Users]
@@ -2083,45 +2083,86 @@ Every implementation must pass the Benaud Test:
 
 ---
 
-## Technology Radar: TTS Providers
+## TTS Provider Architecture
 
-### Current: ElevenLabs (Cloud API)
+### Language-Aware Provider Chains
 
-Production TTS provider offering high-quality prosody, Hindi support, and proven reliability. Per-character API costs apply.
+The TTS engine uses language-specific provider chains with automatic fallback:
 
-### Under Consideration: Qwen3-TTS (Self-Hosted, Jan 2026)
+```
+English: Qwen3-TTS → Svara-TTS → ElevenLabs
+Hindi:   Svara-TTS → ElevenLabs
+```
 
-Open-source TTS from Alibaba's Qwen team. Key attributes:
+Each provider in the chain is tried in order. If a provider is unavailable (server down) or fails, the next provider is tried automatically.
 
-| Attribute     | Details                                                        |
-| ------------- | -------------------------------------------------------------- |
-| Models        | 0.6B and 1.7B parameter variants                               |
-| Latency       | 97ms first-packet streaming                                    |
-| Languages     | 10 (EN, CN, JP, KR, DE, FR, RU, PT, ES, IT) — **no Hindi yet** |
-| Voice Cloning | 3-second audio sample                                          |
-| Voice Design  | Natural language description of desired voice                  |
-| Cost          | Free (self-hosted, GPU required)                               |
-| License       | Open-source                                                    |
+### Provider Summary
 
-**Potential for Suksham Vachak:**
+| Provider       | Type        | Languages           | Default For      | Port    | Key Feature                    |
+| -------------- | ----------- | ------------------- | ---------------- | ------- | ------------------------------ |
+| **Qwen3-TTS**  | Local (GPU) | English             | English personas | `:7860` | Voice cloning, high quality    |
+| **Svara-TTS**  | Local       | 19 Indian + English | Hindi personas   | `:8080` | Emotion tags, multilingual     |
+| **ElevenLabs** | Cloud API   | Multilingual        | Fallback/demo    | N/A     | Premium quality, per-char cost |
 
-- Free inference eliminates per-character costs at scale
-- Voice Design could define persona voices via text description (e.g., "authoritative Australian male, measured pace, cricket commentator")
-- Voice Cloning from 3s reference enables authentic persona recreation
-- 97ms streaming latency beats cloud API round-trips
+### Qwen3-TTS (Default English)
 
-**Blockers:**
+Open-source TTS from Alibaba's Qwen team. Runs as a local OpenAI-compatible server.
 
-- No Hindi/Indian language support (critical for Susheel Doshi persona and Hindi mode)
-- GPU requirement for local inference (1.7B model)
-- Newly released — production stability unproven
+| Attribute     | Details                                                 |
+| ------------- | ------------------------------------------------------- |
+| Endpoint      | `POST /v1/audio/speech` (OpenAI-compatible)             |
+| Models        | 0.6B and 1.7B parameter variants                        |
+| Latency       | 97ms first-packet streaming                             |
+| Voice Cloning | 3-second audio sample                                   |
+| Cost          | Free (self-hosted, GPU required)                        |
+| Env Var       | `QWEN3_TTS_BASE_URL` (default: `http://localhost:7860`) |
 
-**Decision:** Monitor for Hindi language support in future releases. Consider hybrid approach (Qwen3-TTS for English personas, ElevenLabs for Hindi) if quality benchmarks are satisfactory.
+### Svara-TTS (Default Hindi)
 
-**References:**
+Local TTS server supporting 19 Indian languages with emotion-tagged speech.
 
-- [Qwen3-TTS GitHub](https://github.com/QwenLM/Qwen3-TTS)
-- [HuggingFace Collection](https://huggingface.co/collections/Qwen/qwen3-tts)
+| Attribute    | Details                                                                       |
+| ------------ | ----------------------------------------------------------------------------- |
+| Endpoint     | `POST /synthesize` (returns raw PCM)                                          |
+| Languages    | hi, en, ta, te, bn, mr, gu, kn, ml, pa, or, as, ur, sd, ne, si, kok, doi, mai |
+| Emotion Tags | `<happy>`, `<surprise>`, `<anger>`, `<fear>`, `<clear>`                       |
+| Audio Format | PCM → WAV (stdlib) or PCM → MP3 (ffmpeg)                                      |
+| Cost         | Free (self-hosted)                                                            |
+| Env Var      | `SVARA_TTS_BASE_URL` (default: `http://localhost:8080`)                       |
+
+#### Emotion Tag Mapping
+
+Cricket events are automatically mapped to Svara emotion tags for expressive commentary:
+
+| Event        | Default Tag  | Tense Chase Override |
+| ------------ | ------------ | -------------------- |
+| WICKET       | `<surprise>` | `<fear>`             |
+| SIX          | `<happy>`    | `<surprise>`         |
+| FOUR         | `<happy>`    | —                    |
+| DOT_BALL     | `<clear>`    | —                    |
+| WIDE/NO_BALL | `<anger>`    | —                    |
+
+### ElevenLabs (Demo/Fallback)
+
+Cloud API provider kept as last-resort fallback. Per-character costs make it unsuitable for production volume.
+
+### Voice Mapping
+
+| Persona            | Qwen3   | Svara     | ElevenLabs        |
+| ------------------ | ------- | --------- | ----------------- |
+| Richie Benaud (en) | `Ryan`  | `en_male` | Adam              |
+| Tony Greig (en)    | `Aiden` | `en_male` | Antoni            |
+| Sushil Doshi (hi)  | N/A     | `hi_male` | Adam multilingual |
+
+### Environment Variables
+
+| Variable                | Default                 | Purpose                           |
+| ----------------------- | ----------------------- | --------------------------------- |
+| `TTS_PROVIDER`          | `qwen3`                 | Primary TTS provider              |
+| `TTS_FALLBACK_PROVIDER` | `svara`                 | Fallback provider                 |
+| `QWEN3_TTS_BASE_URL`    | `http://localhost:7860` | Qwen3 server URL                  |
+| `SVARA_TTS_BASE_URL`    | `http://localhost:8080` | Svara server URL                  |
+| `ELEVENLABS_API_KEY`    | —                       | ElevenLabs API key (for fallback) |
 
 ---
 
@@ -2142,6 +2183,7 @@ Open-source TTS from Alibaba's Qwen team. Key attributes:
 | 5.2     | 2025-01-08 | Team   | Future Auth section: Cloudflare Access, FastAPI OAuth2, auth providers    |
 | 5.3     | 2025-01-08 | Team   | Local LLM support: Ollama provider, Pi 5 deployment guide, auto-detection |
 | 5.4     | 2026-01-22 | Team   | Technology Radar: Qwen3-TTS evaluation, TOON format integration           |
+| 6.0     | 2026-02-20 | Team   | TTS: Add Qwen3-TTS + Svara-TTS providers, language-aware provider chains  |
 
 ---
 

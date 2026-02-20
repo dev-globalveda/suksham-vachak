@@ -25,7 +25,7 @@ This roadmap prioritizes getting a working prototype quickly using cloud APIs, t
 | **1.1** | **Data Ingestion**       | Connect to a cricket data API or use mock data. Write Python code in `suksham_vachak/processing.py` to parse events. Use [Cricsheet.org](https://cricsheet.org/) (free) for development, or paid APIs (CricAPI, CricketData.org) for live data.                                                 |
 | **1.2** | **Prompt Engineering**   | Design the initial AI prompt in `notebooks/`. Iterate on: _"You are an experienced Hindi cricket commentator. Given the event '[EVENT]', describe the action in a fluent and exciting way."_                                                                                                    |
 | **1.3** | **LLM API Integration**  | Use the `openai` library in `suksham_vachak/llm_api.py`. **Recommended:** Use [Foundry Local](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-local/) for free local inference during development. Design provider-agnostic code to switch between Foundry Local, Ollama, or OpenAI. |
-| **1.4** | **Text-to-Speech (TTS)** | Convert text to audio using Google Cloud TTS or Azure AI Speech. Write logic in `suksham_vachak/tts_engine.py`.                                                                                                                                                                                 |
+| **1.4** | **Text-to-Speech (TTS)** | Convert text to audio using local TTS (Qwen3 for English, Svara for Hindi) with cloud fallback (ElevenLabs). Language-aware provider chains in `suksham_vachak/tts/`.                                                                                                                           |
 | **1.5** | **Basic API + Output**   | Write `suksham_vachak/main.py` to orchestrate steps 1.1–1.4. Add a minimal FastAPI endpoint for future extensibility. Play audio locally using `playsound` or `pyaudio`.                                                                                                                        |
 
 **📦 P1 Outcome:** A basic system that announces game events with a generic AI voice.
@@ -150,7 +150,8 @@ avatars:
 │                            │                                │
 │                     ┌──────▼──────┐                        │
 │                     │ TTS Engine  │                        │
-│                     │ (ElevenLabs)│                        │
+│                     │ (Qwen3/    )│                        │
+│                     │ (Svara/11L )│                        │
 │                     └─────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -187,7 +188,7 @@ avatars:
 - **Cricket Data:** [Cricsheet.org](https://cricsheet.org/) (free ball-by-ball data)
 - **LLM APIs:** [OpenAI](https://platform.openai.com/), [Google AI](https://ai.google.dev/)
 - **Local LLM:** [Foundry Local](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-local/) (recommended), [Ollama](https://ollama.ai/)
-- **TTS:** [ElevenLabs](https://elevenlabs.io/), [Google Cloud TTS](https://cloud.google.com/text-to-speech)
+- **TTS:** [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) (local English), Svara-TTS (local Indian languages), [ElevenLabs](https://elevenlabs.io/) (cloud fallback)
 - **Vector DB:** [ChromaDB](https://www.trychroma.com/)
 
 ### Installing Foundry Local

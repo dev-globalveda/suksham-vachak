@@ -373,26 +373,51 @@ async def generate_commentary(request: CommentaryRequest) -> CommentaryResponse:
                 }
             text = english_fallbacks.get(emotion_key, "What a delivery.")
 
-    # Generate audio
+    # Generate audio using language-aware TTS engine
     audio_base64 = None
     duration = 0.0
 
     try:
         if text:
-            from suksham_vachak.tts.elevenlabs import ElevenLabsTTSProvider
+            from suksham_vachak.tts import create_tts_engine
 
-            provider = ElevenLabsTTSProvider()
+            tts_engine = create_tts_engine()
 
-            # Get voice based on persona
-            voice_id = provider.get_voice_for_persona(persona.name, target_language)
+            # Build provider chain for the target language
+            provider_chain = tts_engine._get_provider_chain(target_language)
 
-            # ElevenLabs doesn't use SSML, pass plain text
-            result = provider.synthesize(
-                text=text, voice_id=voice_id, language=target_language, ssml=False, audio_format=AudioFormat.MP3
-            )
+            for provider_name in provider_chain:
+                try:
+                    tts_provider = tts_engine._get_provider(provider_name)
 
-            audio_base64 = base64.b64encode(result.audio_bytes).decode("utf-8")
-            duration = result.duration_seconds or 0.0
+                    if not tts_provider.supports_language(target_language):
+                        continue
+
+                    voice_id = tts_engine._get_voice_id(persona, provider_name)
+
+                    # For Svara, inject emotion tags
+                    synth_text = text
+                    if provider_name == "svara":
+                        from suksham_vachak.tts.emotion import get_emotion_tag, inject_emotion
+
+                        emotion_tag = get_emotion_tag(target_event.event_type)
+                        synth_text = inject_emotion(text, emotion_tag)
+
+                    result = tts_provider.synthesize(
+                        text=synth_text,
+                        voice_id=voice_id,
+                        language=target_language,
+                        ssml=False,
+                        audio_format=AudioFormat.MP3,
+                    )
+
+                    audio_base64 = base64.b64encode(result.audio_bytes).decode("utf-8")
+                    duration = result.duration_seconds or 0.0
+                    break
+
+                except Exception:
+                    logger.warning("TTS provider failed, trying next", provider=provider_name)
+                    continue
 
     except Exception:
         # Audio generation failed, continue without audio

@@ -23,7 +23,8 @@ Cricsheet JSON → Context Engine → LLM Generation → TTS Audio
 - **Bilingual output** — English and Hindi, with Hindi as transcreation rather than translation
 - **TOON serialization** — custom Token-Oriented Object Notation for ~50% LLM token savings
 - **17,020 real Cricsheet matches** as data source (ball-by-ball JSON)
-- **ElevenLabs TTS** with persona-mapped voices
+- **Multi-provider TTS** — Qwen3-TTS (local, English), Svara-TTS (local, 19 Indian languages), ElevenLabs (cloud fallback). Language-aware routing with automatic failover.
+- **Emotion-tagged Hindi speech** — Cricket events mapped to Svara emotion tags (`<happy>`, `<surprise>`, `<fear>`) for expressive Hindi commentary
 - **Auto LLM detection** — Ollama (local) with Claude API fallback
 - **Template fallback** — works offline when no LLM is available
 - **Rich context** — pressure levels, momentum shifts, batter milestones, narrative tension
@@ -69,13 +70,13 @@ This prototype demonstrates the alternative: the same ball, described by differe
 
 ### Stack
 
-| Layer    | Technology                                             |
-| -------- | ------------------------------------------------------ |
-| Backend  | FastAPI + Uvicorn                                      |
-| LLM      | Claude API (quality) / Ollama local (cost-free)        |
-| TTS      | ElevenLabs (multilingual v2 model)                     |
-| Frontend | Next.js + Tailwind + Framer Motion                     |
-| Data     | Cricsheet ball-by-ball JSON (17,020 matches available) |
+| Layer    | Technology                                                               |
+| -------- | ------------------------------------------------------------------------ |
+| Backend  | FastAPI + Uvicorn                                                        |
+| LLM      | Claude API (quality) / Ollama local (cost-free)                          |
+| TTS      | Qwen3-TTS (English) / Svara-TTS (Hindi+19 langs) / ElevenLabs (fallback) |
+| Frontend | Next.js + Tailwind + Framer Motion                                       |
+| Data     | Cricsheet ball-by-ball JSON (17,020 matches available)                   |
 
 ### TOON Serialization
 

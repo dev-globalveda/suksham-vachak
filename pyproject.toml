@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "suksham_vachak"
-version = "0.0.1"
+version = "0.2.0"
 description = "Suksham Vāchak (सूक्ष्म वाचक) — An intelligent, lightweight AI engine for generating natural cricket commentary from structured match events."
 authors = ["Aman Misra <amanmisra@globalveda.net>"]
 repository = "https://github.com/dev-globalveda/suksham-vachak"

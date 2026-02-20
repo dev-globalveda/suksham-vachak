@@ -28,17 +28,14 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash appuser
-
 # Copy built application
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Set ownership
-RUN chown -R appuser:appuser /app
-USER appuser
+# Use existing node user (UID 1000, GID 1000) — matches homelab_sockets volume ownership
+RUN chown -R node:node /app
+USER node
 
 # Expose port
 EXPOSE 3000

@@ -1,0 +1,52 @@
+# Pi-specific compose for sukshamvachak.com
+# Runs behind Caddy reverse proxy on lan_proxy network
+#
+# Backend communicates via Unix Domain Socket (UDS)
+# Frontend communicates via internal TCP (port 3000, not exposed to host)
+
+services:
+  sv-backend:
+    image: suksham-vachak-backend:latest
+    container_name: sv-backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - UVICORN_UDS=/sockets/sv-backend.sock
+      - LOG_ENV=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - homelab_sockets:/sockets
+    networks:
+      - lan_proxy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.socket(socket.AF_UNIX); s.connect('/sockets/sv-backend.sock'); s.close()",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+
+  sv-frontend:
+    image: suksham-vachak-frontend:latest
+    container_name: sv-frontend
+    restart: unless-stopped
+    networks:
+      - lan_proxy
+    depends_on:
+      sv-backend:
+        condition: service_healthy
+
+networks:
+  lan_proxy:
+    external: true
+
+volumes:
+  homelab_sockets:
+    external: true

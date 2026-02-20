@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Frontend (separate image)
+frontend/
+
+# Large data
+data/all_male_json/
+
+# Documentation / dev tooling
+docs/
+notebooks/
+tests/
+.github/
+.deploy-cache/
+
+# Config / misc
+.git/
+.env
+*.md
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/

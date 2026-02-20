@@ -1,6 +1,6 @@
 // API client for Suksham Vachak backend
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Curated match IDs for the homepage - exciting India matches
 export const CURATED_MATCH_IDS = [

@@ -36,21 +36,30 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY suksham_vachak/ ./suksham_vachak/
 COPY data/ ./data/
 
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 # Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser \
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-# Expose port
+# Expose port (TCP mode only; UDS mode uses socket file)
 EXPOSE 8000
 
 # Environment variables (override in docker-compose)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Health check
+# Health check: UDS mode uses socket connect, TCP mode uses urllib
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
+    CMD if [ -n "$UVICORN_UDS" ]; then \
+        python -c "import socket; s=socket.socket(socket.AF_UNIX); s.connect('$UVICORN_UDS'); s.close()"; \
+    else \
+        python -c "import urllib.request; urllib.request.urlopen('http://localhost:${UVICORN_PORT:-8000}/api/health')"; \
+    fi
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "suksham_vachak.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

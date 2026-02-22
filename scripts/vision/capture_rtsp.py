@@ -31,6 +31,7 @@ import os
 import signal
 import subprocess
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,6 +39,73 @@ import cv2
 
 # Allow RTSPS with self-signed certs (UniFi Protect)
 os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+
+# Default ntfy topic for capture notifications
+NTFY_DEFAULT_TOPIC = "suksham-vachak-capture"
+
+
+class Notifier:
+    """Send push notifications via ntfy.sh."""
+
+    def __init__(self, topic: str | None = None, interval: int = 900):
+        self.url = f"https://ntfy.sh/{topic}" if topic else None
+        self.interval = interval  # seconds between status updates
+        self._last_notify = 0.0
+
+    def _send(self, title: str, message: str, priority: str = "default", tags: str = ""):
+        """POST a notification to ntfy.sh. Failures are silently ignored."""
+        if not self.url:
+            return
+        try:
+            data = message.encode("utf-8")
+            req = urllib.request.Request(self.url, data=data, method="POST")  # noqa: S310
+            req.add_header("Title", title)
+            req.add_header("Priority", priority)
+            if tags:
+                req.add_header("Tags", tags)
+            urllib.request.urlopen(req, timeout=5)  # noqa: S310
+        except Exception:  # noqa: S110
+            pass
+
+    def started(self, session_id: str, source_type: str, resolution: str, fps: float, duration: int | None):
+        """Notify capture started."""
+        dur = f"{duration}s" if duration else "unlimited"
+        self._send(
+            "Capture Started",
+            f"Session: {session_id}\nSource: {source_type}\nRes: {resolution}\nFPS: {fps}\nDuration: {dur}",
+            priority="low",
+            tags="movie_camera,green_circle",
+        )
+        self._last_notify = time.monotonic()
+
+    def status(self, elapsed: float, frames: int, drops: int, force: bool = False):
+        """Periodic status update (respects interval unless force=True)."""
+        now = time.monotonic()
+        if not force and (now - self._last_notify) < self.interval:
+            return
+        hrs = int(elapsed // 3600)
+        mins = int((elapsed % 3600) // 60)
+        self._send(
+            f"Capture Status — {hrs}h{mins:02d}m",
+            f"Frames: {frames}\nDrops: {drops}\nElapsed: {hrs}h {mins:02d}m",
+            tags="bar_chart",
+        )
+        self._last_notify = now
+
+    def error(self, message: str):
+        """Notify on error/reconnect."""
+        self._send("Capture Error", message, priority="high", tags="warning")
+
+    def stopped(self, frames: int, drops: int, elapsed: float, session_dir: str):
+        """Notify capture complete."""
+        hrs = int(elapsed // 3600)
+        mins = int((elapsed % 3600) // 60)
+        self._send(
+            "Capture Complete",
+            f"Frames: {frames}\nDrops: {drops}\nDuration: {hrs}h {mins:02d}m\nDir: {session_dir}",
+            priority="low",
+            tags="checkered_flag",
+        )
 
 
 def detect_camlink() -> str | None:
@@ -197,6 +265,7 @@ class VideoCapture:
         quality: int = 90,
         max_reconnects: int = 10,
         reconnect_delay: float = 5.0,
+        notifier: Notifier | None = None,
     ):
         self.source = source
         self.source_type = source_type
@@ -204,6 +273,7 @@ class VideoCapture:
         self.quality = quality
         self.max_reconnects = max_reconnects
         self.reconnect_delay = reconnect_delay
+        self.notifier = notifier or Notifier()  # no-op if no topic
         self.running = False
         self.frame_count = 0
         self.drop_count = 0
@@ -306,6 +376,7 @@ class VideoCapture:
                 if self.frame_count % 10 == 0:
                     elapsed = now - start_time
                     print(f"  [{elapsed:6.0f}s] Captured {self.frame_count} frames ({self.drop_count} drops)")
+                    self.notifier.status(elapsed, self.frame_count, self.drop_count)
 
         return False
 
@@ -341,16 +412,24 @@ class VideoCapture:
             print(f"  Duration: {duration}s")
         print("  Press Ctrl+C to stop\n")
 
+        notified_start = False
         while self.running:
             try:
                 cap = self._connect()
                 reconnects = 0
+                if not notified_start:
+                    self.notifier.started(
+                        self.session_id, self.source_type, self.meta.get("resolution", "?"), self.target_fps, duration
+                    )
+                    notified_start = True
                 self._read_loop(cap, start_time, duration, frame_interval)
                 cap.release()
             except ConnectionError as e:
                 reconnects += 1
+                self.notifier.error(f"Connection error ({reconnects}/{self.max_reconnects}): {e}")
                 if reconnects > self.max_reconnects:
                     print(f"\n  Max reconnects ({self.max_reconnects}) exceeded. Exiting.")
+                    self.notifier.error(f"Max reconnects exceeded. Capture stopped after {self.frame_count} frames.")
                     break
                 print(f"  Connection error: {e}")
                 print(f"  Reconnecting in {self.reconnect_delay}s ({reconnects}/{self.max_reconnects})...")
@@ -359,6 +438,9 @@ class VideoCapture:
         if av_recorder:
             print("\n  Stopping A/V recording...")
             av_recorder.stop()
+
+        elapsed = time.monotonic() - start_time
+        self.notifier.stopped(self.frame_count, self.drop_count, elapsed, str(self.session_dir))
 
         self._save_meta()
         print("\n  Session complete:")
@@ -406,6 +488,20 @@ Examples:
     )
     parser.add_argument("--quality", type=int, default=90, help="JPEG quality 1-100 (default: 90)")
     parser.add_argument("--record-av", action="store_true", help="Also record full A/V stream via ffmpeg")
+    parser.add_argument(
+        "--notify",
+        type=str,
+        nargs="?",
+        const=NTFY_DEFAULT_TOPIC,
+        default=None,
+        help=f"Enable ntfy.sh push notifications (default topic: {NTFY_DEFAULT_TOPIC})",
+    )
+    parser.add_argument(
+        "--notify-interval",
+        type=int,
+        default=900,
+        help="Notification interval in seconds (default: 900 = 15 min)",
+    )
     args = parser.parse_args()
 
     # Support --url as alias for --source
@@ -420,12 +516,17 @@ Examples:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    notifier = Notifier(topic=args.notify, interval=args.notify_interval)
+    if args.notify:
+        print(f"  Notifications: https://ntfy.sh/{args.notify} (every {args.notify_interval}s)")
+
     capture = VideoCapture(
         source=target,
         source_type=source_type,
         output_dir=output_dir,
         target_fps=args.fps,
         quality=args.quality,
+        notifier=notifier,
     )
     capture.capture(duration=args.duration, record_av=args.record_av)
 
